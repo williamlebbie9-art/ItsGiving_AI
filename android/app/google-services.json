@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "259251351524",
+    "project_id": "decide-ai-89445",
+    "storage_bucket": "decide-ai-89445.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:259251351524:android:a9e09f4f0c1e31229aa1f1",
+        "android_client_info": {
+          "package_name": "com.william.decideai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAW8oyp99OiS_lnMT-7a5eCKMQ7NiIow7g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
