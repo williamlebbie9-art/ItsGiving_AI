@@ -12,7 +12,20 @@
           "package_name": "com.william.decideai"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "259251351524-ra72asv5cre2j7a0i38tgi3upm5r61kp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.william.decideai",
+            "certificate_hash": "74ec539289da87386fc133f3669c1aa5aeba22c8"
+          }
+        },
+        {
+          "client_id": "259251351524-276p6r7rn2o82udf4a9n9gbo8if37skr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAW8oyp99OiS_lnMT-7a5eCKMQ7NiIow7g"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "259251351524-276p6r7rn2o82udf4a9n9gbo8if37skr.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "259251351524-esvnsk571b0aiuurhp95qrpn0e1f99rd.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "Com.william.decide.ai"
+              }
+            }
+          ]
         }
       }
     }

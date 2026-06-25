@@ -21,6 +21,16 @@ class DecisionPrompts {
   - Use alternatives array to include runner-up options in ranked order.
   ''';
 
+    // Build image-to-product labeling so the AI knows which image is which
+    final imageLabels =
+        (request.imagePaths.isNotEmpty && request.compareOptions.length >= 2)
+        ? 'Image mapping: The images are provided in order as follows:\n'
+              '- Image 1 (first): ${request.compareOptions[0]}\n'
+              '- Image 2 (second): ${request.compareOptions[1]}\n'
+              '${request.compareOptions.length >= 3 ? '- Image 3 (third): ${request.compareOptions[2]}\n' : ''}'
+              'Analyze EACH image separately against its labeled product name. Do not skip any product.'
+        : '';
+
     // Build personalization context from user profile
     final personalizationContext = _buildPersonalizationContext(request);
 
@@ -38,6 +48,7 @@ class DecisionPrompts {
         'Style: ${request.userStyle}',
       if (request.imagePaths.isNotEmpty)
         'Image count: ${request.imagePaths.length}',
+      if (imageLabels.isNotEmpty) imageLabels,
       if (personalizationContext.isNotEmpty)
         'User Profile: $personalizationContext',
       compareBlock,

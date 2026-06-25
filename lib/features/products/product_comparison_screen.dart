@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/models/decision_models.dart';
 import '../../core/services/decision_engine.dart';
+import '../../core/extractors/product_details_extractor.dart';
 import '../../core/storage/comparison_repository.dart';
 import '../../core/storage/history_repository.dart';
 import '../../core/storage/profile_repository.dart';
@@ -187,7 +188,11 @@ class _ProductComparisonScreenState extends State<ProductComparisonScreen> {
       // Also request focused analysis for each product to ensure both get individual summaries
       final requestA = DecisionRequest(
         query:
-            'Provide a concise analysis for Product A (${_productAName ?? 'Product A'}). Include overview, key specifications, ingredients/materials if visible, main advantages, drawbacks, and a short recommendation.',
+            'Provide a concise analysis for Product A (${_productAName ?? 'Product A'}). Organize your response using EXACT section markers like this:\n\n'
+            '[PRICE_AND_PURCHASE]\nEstimated price range and where to buy this product\n[/PRICE_AND_PURCHASE]\n\n'
+            '[EFFECTS_BENEFITS]\nKey features, specifications, and benefits\n[/EFFECTS_BENEFITS]\n\n'
+            '[PROS_CONS]\n+ Main advantages\n+ Pro 2\n- Main drawbacks\n- Con 2\n[/PROS_CONS]\n\n'
+            '[RECOMMENDATION]\nShort recommendation\n[/RECOMMENDATION]',
         manualCategory: DecisionCategory.products,
         imagePaths: [_productAImage!.path],
       );
@@ -195,7 +200,11 @@ class _ProductComparisonScreenState extends State<ProductComparisonScreen> {
 
       final requestB = DecisionRequest(
         query:
-            'Provide a concise analysis for Product B (${_productBName ?? 'Product B'}). Include overview, key specifications, ingredients/materials if visible, main advantages, drawbacks, and a short recommendation.',
+            'Provide a concise analysis for Product B (${_productBName ?? 'Product B'}). Organize your response using EXACT section markers like this:\n\n'
+            '[PRICE_AND_PURCHASE]\nEstimated price range and where to buy this product\n[/PRICE_AND_PURCHASE]\n\n'
+            '[EFFECTS_BENEFITS]\nKey features, specifications, and benefits\n[/EFFECTS_BENEFITS]\n\n'
+            '[PROS_CONS]\n+ Main advantages\n+ Pro 2\n- Main drawbacks\n- Con 2\n[/PROS_CONS]\n\n'
+            '[RECOMMENDATION]\nShort recommendation\n[/RECOMMENDATION]',
         manualCategory: DecisionCategory.products,
         imagePaths: [_productBImage!.path],
       );
@@ -254,8 +263,8 @@ class _ProductComparisonScreenState extends State<ProductComparisonScreen> {
             'Product B Pick': pickB,
           };
         })(),
-        productADetails: {},
-        productBDetails: {},
+        productADetails: _extractProductDetails(resultA),
+        productBDetails: _extractProductDetails(resultB),
       );
 
       // Save to history
@@ -269,6 +278,7 @@ class _ProductComparisonScreenState extends State<ProductComparisonScreen> {
               comparison: comparison,
               decisionEngine: widget.decisionEngine,
               comparisonRepository: widget.comparisonRepository,
+              isGeneral: true,
             ),
           ),
         );
@@ -280,6 +290,49 @@ class _ProductComparisonScreenState extends State<ProductComparisonScreen> {
         setState(() => _isAnalyzing = false);
       }
     }
+  }
+
+  Map<String, String> _extractProductDetails(DecisionResult result) {
+    final extractor = const ProductDetailsExtractor();
+    final text = result.reasoning;
+
+    // If the AI used section markers, extract per-section content
+    if (extractor.hasMarkers(text)) {
+      final prosConsText = extractor.extract(text, 'PROS_CONS');
+      final parsed = extractor.parseProsCons(prosConsText);
+      final prosStr = parsed.key.isNotEmpty ? parsed.key.join('\n') : '';
+      final consStr = parsed.value.isNotEmpty ? parsed.value.join('\n') : '';
+      return {
+        'priceAndPurchase': extractor.extract(text, 'PRICE_AND_PURCHASE'),
+        'effectsBenefits': extractor.extract(text, 'EFFECTS_BENEFITS'),
+        'prosCons': [
+          if (prosStr.isNotEmpty) 'Pros:\n$prosStr',
+          if (consStr.isNotEmpty) 'Cons:\n$consStr',
+        ].join('\n\n'),
+      };
+    }
+
+    // Fallback: give each section DIFFERENT content instead of duplicating the full text
+    return {
+      'priceAndPurchase': result.pros.isNotEmpty
+          ? result.pros
+                .where((p) {
+                  final lower = p.toLowerCase();
+                  return lower.contains('price') ||
+                      lower.contains('budget') ||
+                      lower.contains('cost') ||
+                      lower.contains('buy') ||
+                      lower.contains('store') ||
+                      lower.contains('value');
+                })
+                .join('\n')
+          : '',
+      'effectsBenefits': result.pros.isNotEmpty ? result.pros.join('\n') : text,
+      'prosCons': [
+        if (result.pros.isNotEmpty) 'Pros:\n${result.pros.join('\n')}',
+        if (result.cons.isNotEmpty) 'Cons:\n${result.cons.join('\n')}',
+      ].where((item) => item.isNotEmpty).join('\n\n'),
+    };
   }
 
   void _showError(String message) {

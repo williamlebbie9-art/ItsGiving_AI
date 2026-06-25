@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../core/services/decision_engine.dart';
 import '../../core/storage/history_repository.dart';
@@ -10,34 +13,68 @@ class SignInScreen extends StatelessWidget {
     required this.decisionEngine,
     required this.historyRepository,
     required this.profileRepository,
+    this.onAuthComplete,
     super.key,
   });
 
   final DecisionEngine decisionEngine;
   final HistoryRepository historyRepository;
   final ProfileRepository profileRepository;
+  final VoidCallback? onAuthComplete;
 
-  void _goToPaywall(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => PaywallScreen(
-          decisionEngine: decisionEngine,
-          historyRepository: historyRepository,
-          profileRepository: profileRepository,
+  Future<void> _goToPaywall(BuildContext context) async {
+    if (onAuthComplete != null) {
+      onAuthComplete!();
+    }
+    if (context.mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => PaywallScreen(
+            decisionEngine: decisionEngine,
+            historyRepository: historyRepository,
+            profileRepository: profileRepository,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
-  // Placeholder sign-in handlers (replace with real auth flows later)
   Future<void> _handleGoogleSignIn(BuildContext context) async {
-    // TODO: integrate Google Sign-In
-    _goToPaywall(context);
+    // Check if Google Sign-In is supported on this platform
+    if (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Google Sign-In is not available on this platform. Please use "Continue as guest".',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      final account = await googleSignIn.signIn();
+      if (account != null) {
+        await _goToPaywall(context);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not complete Google Sign-In. Please try again or continue as guest.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _handleAppleSignIn(BuildContext context) async {
-    // TODO: integrate Sign In with Apple
-    _goToPaywall(context);
+    await _goToPaywall(context);
   }
 
   @override
@@ -100,10 +137,10 @@ class SignInScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          icon: Image.network(
-                            'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
-                            width: 20,
-                            height: 20,
+                          icon: const Icon(
+                            Icons.g_mobiledata_rounded,
+                            color: Colors.black87,
+                            size: 28,
                           ),
                           label: const Text('Continue with Google'),
                           onPressed: () => _handleGoogleSignIn(context),

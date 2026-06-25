@@ -5,11 +5,12 @@ import '../../core/storage/history_repository.dart';
 import '../../core/storage/profile_repository.dart';
 import '../home/home_screen.dart';
 
-class PaywallScreen extends StatelessWidget {
+class PaywallScreen extends StatefulWidget {
   const PaywallScreen({
     required this.decisionEngine,
     required this.historyRepository,
     required this.profileRepository,
+    this.fromUpgrade = false,
     super.key,
   });
 
@@ -17,16 +18,47 @@ class PaywallScreen extends StatelessWidget {
   final HistoryRepository historyRepository;
   final ProfileRepository profileRepository;
 
+  /// When true, the paywall is shown as an upgrade option from the profile
+  /// screen and pressing back goes to profile instead of home.
+  final bool fromUpgrade;
+
+  @override
+  State<PaywallScreen> createState() => _PaywallScreenState();
+}
+
+class _PaywallScreenState extends State<PaywallScreen> {
+  int? _selectedIndex;
+
   void _continueToHome(BuildContext context) {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => HomeScreen(
-          decisionEngine: decisionEngine,
-          historyRepository: historyRepository,
-          profileRepository: profileRepository,
+          decisionEngine: widget.decisionEngine,
+          historyRepository: widget.historyRepository,
+          profileRepository: widget.profileRepository,
         ),
       ),
     );
+  }
+
+  void _dismiss(BuildContext context) {
+    if (widget.fromUpgrade) {
+      Navigator.of(context).pop();
+    } else {
+      _continueToHome(context);
+    }
+  }
+
+  String _buttonLabel() {
+    if (_selectedIndex == null) return 'Start Free';
+    switch (_selectedIndex) {
+      case 1:
+        return 'Subscribe to Premium - \$2.99 / mo';
+      case 2:
+        return 'Subscribe to Pro - \$4.99 / mo';
+      default:
+        return 'Start Free';
+    }
   }
 
   Widget _buildFeatureItem(IconData icon, String title, String subtitle) {
@@ -62,90 +94,129 @@ class PaywallScreen extends StatelessWidget {
     required String tier,
     required String label,
     required String price,
+    required String sublabel,
     required List<String> items,
     required Color borderColor,
     required Color backgroundColor,
     required bool highlighted,
+    required int index,
   }) {
-    return Container(
-      width: 260,
-      margin: const EdgeInsets.only(right: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: borderColor, width: highlighted ? 2.4 : 1.4),
-        boxShadow: highlighted
-            ? [
-                BoxShadow(
-                  color: borderColor.withValues(alpha: 0.22),
-                  blurRadius: 24,
-                  offset: const Offset(0, 14),
-                ),
-              ]
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (tier.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: borderColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                tier,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          if (tier.isNotEmpty) const SizedBox(height: 18),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-            ),
+    final isSelected = _selectedIndex == index;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedIndex = index;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        width: 260,
+        margin: const EdgeInsets.only(right: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: isSelected
+                ? borderColor
+                : borderColor.withValues(alpha: 0.5),
+            width: isSelected ? 3.0 : 1.4,
           ),
-          const SizedBox(height: 10),
-          Text(
-            price,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.92),
-              fontWeight: FontWeight.w800,
-              fontSize: 32,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: borderColor.withValues(alpha: 0.35),
+                    blurRadius: 28,
+                    offset: const Offset(0, 16),
+                  ),
+                ]
+              : highlighted
+              ? [
+                  BoxShadow(
+                    color: borderColor.withValues(alpha: 0.22),
+                    blurRadius: 24,
+                    offset: const Offset(0, 14),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (tier.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: borderColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  tier,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            if (tier.isNotEmpty) const SizedBox(height: 18),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          ...items.map(
-            (item) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      item,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.88),
-                        fontSize: 13,
-                        height: 1.45,
+            const SizedBox(height: 10),
+            Text(
+              price,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.92),
+                fontWeight: FontWeight.w800,
+                fontSize: 32,
+              ),
+            ),
+            if (sublabel.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  sublabel,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 14),
+            ...items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          fontSize: 13,
+                          height: 1.45,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -164,13 +235,22 @@ class PaywallScreen extends StatelessWidget {
         elevation: 0,
         centerTitle: false,
         title: const Text('Decide AI'),
+        leading: widget.fromUpgrade
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
       ),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -197,26 +277,46 @@ class PaywallScreen extends StatelessWidget {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          _CategoryChip(label: 'Food', icon: Icons.fastfood_rounded),
-                          _CategoryChip(label: 'Cosmetics', icon: Icons.brush_rounded),
-                          _CategoryChip(label: 'Electronics', icon: Icons.devices_other_rounded),
-                          _CategoryChip(label: 'Gaming PCs', icon: Icons.videogame_asset_rounded),
-                          _CategoryChip(label: 'Household Goods', icon: Icons.shopping_bag_rounded),
-                          _CategoryChip(label: '& More', icon: Icons.apps_rounded),
+                          _CategoryChip(
+                            label: 'Food',
+                            icon: Icons.fastfood_rounded,
+                          ),
+                          _CategoryChip(
+                            label: 'Cosmetics',
+                            icon: Icons.brush_rounded,
+                          ),
+                          _CategoryChip(
+                            label: 'Electronics',
+                            icon: Icons.devices_other_rounded,
+                          ),
+                          _CategoryChip(
+                            label: 'Gaming PCs',
+                            icon: Icons.videogame_asset_rounded,
+                          ),
+                          _CategoryChip(
+                            label: 'Household Goods',
+                            icon: Icons.shopping_bag_rounded,
+                          ),
+                          _CategoryChip(
+                            label: '& More',
+                            icon: Icons.apps_rounded,
+                          ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 28),
                     SizedBox(
-                      height: 410,
+                      height: 440,
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildPricingCard(
-                              tier: 'FREE',
-                              label: 'Try Decide AI',
-                              price: '\$0 forever',
+                              tier: '',
+                              label: 'Free',
+                              price: '\$0',
+                              sublabel: 'Forever free',
                               items: [
                                 '7 comparisons per month',
                                 'Basic AI insights',
@@ -226,12 +326,15 @@ class PaywallScreen extends StatelessWidget {
                               borderColor: Colors.white24,
                               backgroundColor: const Color(0xFF111429),
                               highlighted: false,
+                              index: 0,
                             ),
                             _buildPricingCard(
                               tier: 'MOST POPULAR',
                               label: 'PREMIUM',
-                              price: '50 comparisons / month',
+                              price: '\$2.99',
+                              sublabel: 'per month',
                               items: [
+                                '50 comparisons per month',
                                 'Detailed AI insights',
                                 'Comparison chat',
                                 'Save comparisons',
@@ -240,12 +343,15 @@ class PaywallScreen extends StatelessWidget {
                               borderColor: accent,
                               backgroundColor: const Color(0xFF241E49),
                               highlighted: true,
+                              index: 1,
                             ),
                             _buildPricingCard(
                               tier: 'BEST VALUE',
                               label: 'PRO',
-                              price: 'Unlimited comparisons',
+                              price: '\$4.99',
+                              sublabel: 'per month',
                               items: [
+                                'Unlimited comparisons',
                                 'Everything in Premium',
                                 'Advanced AI reports',
                                 'Faster comparison processing',
@@ -254,20 +360,7 @@ class PaywallScreen extends StatelessWidget {
                               borderColor: highlight,
                               backgroundColor: const Color(0xFF132043),
                               highlighted: false,
-                            ),
-                            _buildPricingCard(
-                              tier: 'ANNUAL',
-                              label: 'ANNUAL',
-                              price: '\$34.99 / year',
-                              items: [
-                                'One payment. Best savings.',
-                                'Unlimited comparisons',
-                                'Advanced AI reports',
-                                'Priority support',
-                              ],
-                              borderColor: Colors.greenAccent.shade400,
-                              backgroundColor: const Color(0xFF0D1529),
-                              highlighted: false,
+                              index: 2,
                             ),
                           ],
                         ),
@@ -339,25 +432,38 @@ class PaywallScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => _continueToHome(context),
+                      onPressed: () => _dismiss(context),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: accent,
+                        backgroundColor: _selectedIndex != null
+                            ? accent
+                            : Colors.white.withValues(alpha: 0.15),
+                        foregroundColor: _selectedIndex != null
+                            ? Colors.white
+                            : Colors.white70,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      child: const Text(
-                        'Start Your Free Trial',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      child: Text(
+                        _buttonLabel(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () => _continueToHome(context),
-                    child: const Text('Already have an account? Sign In'),
-                  ),
+                  if (!widget.fromUpgrade)
+                    Column(
+                      children: [
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () => _continueToHome(context),
+                          child: const Text('Already have an account? Sign In'),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -369,10 +475,7 @@ class PaywallScreen extends StatelessWidget {
 }
 
 class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({
-    required this.label,
-    required this.icon,
-  });
+  const _CategoryChip({required this.label, required this.icon});
 
   final String label;
   final IconData icon;
@@ -399,8 +502,3 @@ class _CategoryChip extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

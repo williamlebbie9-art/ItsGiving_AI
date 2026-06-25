@@ -298,13 +298,16 @@ class AiClient {
       final best = request.compareOptions.isNotEmpty
           ? request.compareOptions.first
           : _foodBestChoice(request);
+      final isProductA =
+          request.compareOptions.isNotEmpty &&
+          request.compareOptions.first.contains('Product A');
       return DecisionResult(
         bestChoice: best,
         alternatives: _foodAlternatives(request),
         reasoning: _foodReasoning(request, best),
         pros: _foodPros(request),
         cons: _foodCons(request),
-        confidenceScore: request.compareOptions.isNotEmpty ? '0.79' : '0.75',
+        confidenceScore: isProductA ? '0.82' : '0.76',
         category: category,
       );
     }
@@ -325,27 +328,65 @@ class AiClient {
     }
 
     if (category == DecisionCategory.fashion) {
+      // Differentiate mock responses based on the compare option
+      final isProductA =
+          request.compareOptions.isNotEmpty &&
+          (request.compareOptions.first.contains('Product A'));
+      final confidence = isProductA ? '0.86' : '0.80';
       final best = request.compareOptions.isNotEmpty
           ? request.compareOptions.first
           : 'Smart-casual layered outfit';
+
+      if (isProductA) {
+        return DecisionResult(
+          bestChoice: best,
+          alternatives: const ['Monochrome minimal outfit'],
+          reasoning:
+              'Product A has a strong formula with hydrating ingredients like Hyaluronic Acid and Niacinamide. '
+              'The formulation uses gentle surfactants and the pH level is balanced for daily use. '
+              'Price range: approximately \$25-\$35. '
+              'Effects: Deep hydration, improved skin texture, and antioxidant protection. '
+              'Ingredients: Water, Glycerin, Niacinamide, Hyaluronic Acid, Ceramides. '
+              'Estimated price: \$28-\$35 at Sephora or Ulta.',
+          pros: const [
+            'Estimated price: \$28-\$35 at Sephora or Ulta',
+            'Hydrating formula with Hyaluronic Acid',
+            'Contains Niacinamide for brightening',
+            'Gentle enough for sensitive skin',
+            'Good value: high-quality ingredients at mid-range price',
+          ],
+          cons: const [
+            'Contains fragrance which may irritate some',
+            'Thicker consistency not ideal for oily skin',
+          ],
+          confidenceScore: confidence,
+          category: category,
+        );
+      }
+
+      // Product B
       return DecisionResult(
         bestChoice: best,
-        alternatives: const [
-          'Monochrome minimal outfit',
-          'Relaxed streetwear look',
-        ],
+        alternatives: const ['Relaxed streetwear look'],
         reasoning:
-            'This option balances style and practicality for your context while keeping the silhouette clean and modern.',
+            'Product B uses a lightweight gel-cream formula with Vitamin C and Peptides. '
+            'The formulation is fragrance-free and designed for morning use under sunscreen. '
+            'Price range: approximately \$35-\$50. '
+            'Effects: Brightening, firming, and protection against environmental stressors. '
+            'Ingredients: Water, Ascorbic Acid (Vitamin C), Peptides, Squalane, Tocopherol. '
+            'Estimated price: \$38-\$48 at Sephora or the brand website.',
         pros: const [
-          'Versatile',
-          'Photographs well',
-          'Comfortable for long wear',
+          'Estimated price: \$38-\$48 at Sephora or brand website',
+          'Vitamin C for brightening and antioxidant protection',
+          'Peptides support collagen production',
+          'Fragrance-free for sensitive skin',
+          'Lightweight gel texture absorbs quickly',
         ],
         cons: const [
-          'Needs matching shoes',
-          'May require layering if weather shifts',
+          'Higher price point compared to similar products',
+          'Vitamin C stability requires opaque packaging',
         ],
-        confidenceScore: '0.83',
+        confidenceScore: confidence,
         category: category,
       );
     }
@@ -354,13 +395,16 @@ class AiClient {
       final best = request.compareOptions.isNotEmpty
           ? request.compareOptions.first
           : _productBestChoice(request);
+      final isProductA =
+          request.compareOptions.isNotEmpty &&
+          request.compareOptions.first.contains('Product A');
       return DecisionResult(
         bestChoice: best,
         alternatives: _productAlternatives(request),
         reasoning: _productReasoning(request, best),
         pros: _productPros(request, best),
         cons: _productCons(request),
-        confidenceScore: request.compareOptions.isNotEmpty ? '0.84' : '0.81',
+        confidenceScore: isProductA ? '0.87' : '0.81',
         category: category,
       );
     }

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/models/decision_models.dart';
 import '../../core/services/decision_engine.dart';
+import '../../core/extractors/product_details_extractor.dart';
 import '../../core/storage/comparison_repository.dart';
 import '../products/comparison_result_screen.dart';
 
@@ -155,7 +156,7 @@ class _CosmeticAnalysisScreenState extends State<CosmeticAnalysisScreen> {
             setState(() => _productAImage = image);
           }),
         ),
-        const SizedBox(height: 16),
+        _buildVsDivider(),
         _buildProductCard(
           title: 'Cosmetic Product B',
           image: _productBImage,
@@ -168,6 +169,39 @@ class _CosmeticAnalysisScreenState extends State<CosmeticAnalysisScreen> {
           }),
         ),
       ],
+    );
+  }
+
+  Widget _buildVsDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            'VS',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Theme.of(context).colorScheme.onPrimary,
+              letterSpacing: 2,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -349,14 +383,20 @@ class _CosmeticAnalysisScreenState extends State<CosmeticAnalysisScreen> {
             'Compare these two cosmetic products. For each product provide: Effects, Ingredients, Pros, Cons, Estimated price range, Where to buy. Then list Major differences and give a final verdict recommending one product with a short rationale.',
         manualCategory: _selectedCategory,
         imagePaths: [_productAImage!.path, _productBImage!.path],
+        compareOptions: ['Product A (Cosmetic)', 'Product B (Cosmetic)'],
       );
 
       final overall = await widget.decisionEngine.decide(overallRequest);
 
-      // Per-product focused prompts
+      // Per-product focused prompts with section markers
       final requestA = DecisionRequest(
         query:
-            'Provide a concise cosmetic analysis for Product A. Include Effects, Ingredients, Pros, Cons, Estimated price range, and Where to buy. End with a short recommendation.',
+            'Provide a detailed cosmetic analysis for Product A. Organize your response using EXACT section markers like this:\n\n'
+            '[PRICE_AND_PURCHASE]\nPrice of this product (e.g., \$50, \$100)\n[/PRICE_AND_PURCHASE]\n\n'
+            '[EFFECTS_BENEFITS]\nEffects or benefits of this product\n[/EFFECTS_BENEFITS]\n\n'
+            '[INGREDIENTS]\nKey ingredients and materials used to make this product\n[/INGREDIENTS]\n\n'
+            '[PROS_CONS]\n+ Pro 1\n+ Pro 2\n- Con 1\n- Con 2\n[/PROS_CONS]\n\n'
+            '[RECOMMENDATION]\nShort recommendation\n[/RECOMMENDATION]',
         manualCategory: _selectedCategory,
         imagePaths: [_productAImage!.path],
       );
@@ -364,7 +404,12 @@ class _CosmeticAnalysisScreenState extends State<CosmeticAnalysisScreen> {
 
       final requestB = DecisionRequest(
         query:
-            'Provide a concise cosmetic analysis for Product B. Include Effects, Ingredients, Pros, Cons, Estimated price range, and Where to buy. End with a short recommendation.',
+            'Provide a detailed cosmetic analysis for Product B. Organize your response using EXACT section markers like this:\n\n'
+            '[PRICE_AND_PURCHASE]\nPrice of this product (e.g., \$50, \$100)\n[/PRICE_AND_PURCHASE]\n\n'
+            '[EFFECTS_BENEFITS]\nEffects or benefits of this product\n[/EFFECTS_BENEFITS]\n\n'
+            '[INGREDIENTS]\nKey ingredients and materials used to make this product\n[/INGREDIENTS]\n\n'
+            '[PROS_CONS]\n+ Pro 1\n+ Pro 2\n- Con 1\n- Con 2\n[/PROS_CONS]\n\n'
+            '[RECOMMENDATION]\nShort recommendation\n[/RECOMMENDATION]',
         manualCategory: _selectedCategory,
         imagePaths: [_productBImage!.path],
       );
@@ -396,26 +441,8 @@ class _CosmeticAnalysisScreenState extends State<CosmeticAnalysisScreen> {
             ? overall.bestChoice
             : '${resultA.bestChoice} / ${resultB.bestChoice}',
         alternativeRecommendations: {'Verdict': overall.reasoning},
-        productADetails: {
-          'priceAndPurchase': resultA.reasoning,
-          'effectsBenefits': resultA.reasoning,
-          'nutrients': resultA.reasoning,
-          'prosCons': [
-            if (resultA.pros.isNotEmpty) resultA.pros.join('\n'),
-            if (resultA.cons.isNotEmpty) resultA.cons.join('\n'),
-          ].where((item) => item.isNotEmpty).join('\n\n'),
-          'processedChemicals': resultA.reasoning,
-        },
-        productBDetails: {
-          'priceAndPurchase': resultB.reasoning,
-          'effectsBenefits': resultB.reasoning,
-          'nutrients': resultB.reasoning,
-          'prosCons': [
-            if (resultB.pros.isNotEmpty) resultB.pros.join('\n'),
-            if (resultB.cons.isNotEmpty) resultB.cons.join('\n'),
-          ].where((item) => item.isNotEmpty).join('\n\n'),
-          'processedChemicals': resultB.reasoning,
-        },
+        productADetails: _extractProductDetails(resultA),
+        productBDetails: _extractProductDetails(resultB),
       );
 
       // Save to repository
@@ -430,6 +457,7 @@ class _CosmeticAnalysisScreenState extends State<CosmeticAnalysisScreen> {
               decisionEngine: widget.decisionEngine,
               comparisonRepository: widget.comparisonRepository,
               startChatExpanded: true,
+              isCosmetic: true,
             ),
           ),
         );
@@ -443,6 +471,135 @@ class _CosmeticAnalysisScreenState extends State<CosmeticAnalysisScreen> {
         });
       }
     }
+  }
+
+  Map<String, String> _extractProductDetails(DecisionResult result) {
+    final extractor = const ProductDetailsExtractor();
+    final text = result.reasoning;
+
+    // If the AI used section markers, extract per-section content
+    if (extractor.hasMarkers(text)) {
+      final prosConsText = extractor.extract(text, 'PROS_CONS');
+      final parsed = extractor.parseProsCons(prosConsText);
+      final prosStr = parsed.key.isNotEmpty ? parsed.key.join('\n') : '';
+      final consStr = parsed.value.isNotEmpty ? parsed.value.join('\n') : '';
+      return {
+        'priceAndPurchase': extractor.extract(text, 'PRICE_AND_PURCHASE'),
+        'effectsBenefits': extractor.extract(text, 'EFFECTS_BENEFITS'),
+        'ingredients': extractor.extract(text, 'INGREDIENTS'),
+        'prosCons': [
+          if (prosStr.isNotEmpty) 'Pros:\n$prosStr',
+          if (consStr.isNotEmpty) 'Cons:\n$consStr',
+        ].join('\n\n'),
+      };
+    }
+
+    // Fallback: intelligently split freeform text into sections to avoid
+    // dumping the full reasoning into every field (which causes duplicate
+    // text across all cosmetic sections in the comparison view).
+    /// Splits freeform text by topic headers and assigns each block
+    /// to the best-matching section key.
+    String extractSection(
+      String haystack,
+      String label,
+      List<String> keywords,
+    ) {
+      // Try to match "**Label:** content" or "Label:\ncontent"
+      final headerRegex = RegExp(
+        r'\*{0,2}' +
+            RegExp.escape(label) +
+            r'\*{0,2}\s*:\s*(.+?)(?=\n\s*\n|\n\s*\*{0,2}\w+\*{0,2}\s*:|$)',
+        caseSensitive: false,
+        dotAll: true,
+      );
+      final match = headerRegex.firstMatch(haystack);
+      if (match != null) {
+        return match.group(1)!.trim();
+      }
+
+      // Fallback: search by keyword presence and extract a sensible block
+      final lines = haystack.split('\n');
+      final buffer = <String>[];
+      bool capturing = false;
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty) {
+          if (capturing) break;
+          continue;
+        }
+        final lower = trimmed.toLowerCase();
+        if (!capturing) {
+          final hasKeyword = keywords.any((k) => lower.contains(k));
+          final isHeader =
+              trimmed.startsWith('**') ||
+              trimmed.startsWith('#') ||
+              trimmed.endsWith(':') ||
+              RegExp(r'^[A-Z][A-Z\s]+[:\n]').hasMatch(trimmed);
+          if (hasKeyword || isHeader && lower.contains(keywords.first)) {
+            capturing = true;
+            if (isHeader && lower.contains(keywords.first)) continue;
+            buffer.add(trimmed);
+          }
+        } else {
+          if (trimmed.startsWith('**') ||
+              trimmed.startsWith('#') ||
+              (trimmed.endsWith(':') && trimmed.length < 40)) {
+            break;
+          }
+          buffer.add(trimmed);
+        }
+      }
+      return buffer.isNotEmpty ? buffer.join('\n') : '';
+    }
+
+    final price = extractSection(text, 'Price', [
+      'price',
+      'cost',
+      'purchase',
+      'buy',
+      'budget',
+    ]);
+    final effects = extractSection(text, 'Effects', [
+      'effect',
+      'benefit',
+      'impact',
+    ]);
+    final ingredients = extractSection(text, 'Ingredients', [
+      'ingredient',
+      'composition',
+    ]);
+
+    return {
+      'priceAndPurchase': price.isNotEmpty
+          ? price
+          : (result.pros.isNotEmpty
+                ? result.pros
+                      .where((p) {
+                        final lower = p.toLowerCase();
+                        return lower.contains('price') ||
+                            lower.contains('budget') ||
+                            lower.contains('cost') ||
+                            lower.contains('buy') ||
+                            lower.contains('store') ||
+                            lower.contains('value');
+                      })
+                      .join('\n')
+                : ''),
+      'effectsBenefits': effects.isNotEmpty
+          ? effects
+          : (result.pros.isNotEmpty
+                ? result.pros.join('\n')
+                : 'No effects/benefits extracted.'),
+      'ingredients': ingredients.isNotEmpty
+          ? ingredients
+          : (result.cons.isNotEmpty
+                ? result.cons.join('\n')
+                : 'No ingredients extracted.'),
+      'prosCons': [
+        if (result.pros.isNotEmpty) 'Pros:\n${result.pros.join('\n')}',
+        if (result.cons.isNotEmpty) 'Cons:\n${result.cons.join('\n')}',
+      ].where((item) => item.isNotEmpty).join('\n\n'),
+    };
   }
 
   void _showError(String message) {

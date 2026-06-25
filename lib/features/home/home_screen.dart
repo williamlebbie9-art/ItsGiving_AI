@@ -453,7 +453,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildProfileTab(BuildContext context) {
-    return ProfileScreen(profileRepository: widget.profileRepository);
+    return ProfileScreen(
+      profileRepository: widget.profileRepository,
+      decisionEngine: widget.decisionEngine,
+      historyRepository: widget.historyRepository,
+    );
   }
 
   Widget _buildRecentSection(BuildContext context) {
