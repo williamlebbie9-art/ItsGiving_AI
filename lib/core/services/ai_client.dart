@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -64,21 +65,29 @@ class AiClient {
       imagePaths: request.imagePaths,
     );
 
-    final response = await http.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': model,
-        'messages': [
-          {'role': 'user', 'content': userContent},
-        ],
-        'response_format': {'type': 'json_object'},
-        'temperature': 0.4,
-      }),
-    );
+    final response = await http
+        .post(
+          uri,
+          headers: {
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'model': model,
+            'messages': [
+              {'role': 'user', 'content': userContent},
+            ],
+            'response_format': {'type': 'json_object'},
+            'temperature': 0.4,
+          }),
+        )
+        .timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => throw TimeoutException(
+            'OpenAI request timed out',
+            const Duration(seconds: 20),
+          ),
+        );
 
     if (response.statusCode < 200 || response.statusCode > 299) {
       throw Exception('OpenAI request failed: ${response.statusCode}');
@@ -115,19 +124,27 @@ class AiClient {
       imagePaths: request.imagePaths,
     );
 
-    final response = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'generationConfig': {
-          'temperature': 0.4,
-          'responseMimeType': 'application/json',
-        },
-        'contents': [
-          {'role': 'user', 'parts': parts},
-        ],
-      }),
-    );
+    final response = await http
+        .post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'generationConfig': {
+              'temperature': 0.4,
+              'responseMimeType': 'application/json',
+            },
+            'contents': [
+              {'role': 'user', 'parts': parts},
+            ],
+          }),
+        )
+        .timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => throw TimeoutException(
+            'Gemini request timed out',
+            const Duration(seconds: 20),
+          ),
+        );
 
     if (response.statusCode < 200 || response.statusCode > 299) {
       throw Exception('Gemini request failed: ${response.statusCode}');
@@ -164,16 +181,24 @@ class AiClient {
 
     final images = await _buildImagePayloads(imagePaths: request.imagePaths);
 
-    final response = await http.post(
-      Uri.parse(functionUrl),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'category': category.value,
-        'prompt': prompt,
-        'request': request.toJson(),
-        'images': images,
-      }),
-    );
+    final response = await http
+        .post(
+          Uri.parse(functionUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'category': category.value,
+            'prompt': prompt,
+            'request': request.toJson(),
+            'images': images,
+          }),
+        )
+        .timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => throw TimeoutException(
+            'Firebase function request timed out',
+            const Duration(seconds: 20),
+          ),
+        );
 
     if (response.statusCode < 200 || response.statusCode > 299) {
       throw Exception(

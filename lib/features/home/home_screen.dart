@@ -6,7 +6,7 @@ import '../../core/services/decision_engine.dart';
 import '../../core/storage/comparison_repository.dart';
 import '../../core/storage/history_repository.dart';
 import '../../core/storage/profile_repository.dart';
-import '../analysis/cosmetic_analysis_screen.dart';
+import '../analysis/beauty_analysis_screen.dart';
 import '../analysis/food_analysis_screen.dart';
 import '../products/comparison_result_screen.dart';
 import '../products/product_comparison_screen.dart';
@@ -50,7 +50,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildHomePage(context),
             _buildCompareTab(context),
             _buildFoodTab(context),
-            _buildCosmeticTab(context),
+            _buildSkincareTab(context),
+            _buildPerfumeTab(context),
             _buildSavedTab(context),
             _buildProfileTab(context),
           ],
@@ -81,9 +82,14 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Food',
           ),
           NavigationDestination(
-            icon: Icon(Icons.brush_outlined),
-            selectedIcon: Icon(Icons.brush_rounded),
-            label: 'Cosmetics',
+            icon: Icon(Icons.spa_outlined),
+            selectedIcon: Icon(Icons.spa_rounded),
+            label: 'Skincare',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.local_florist_outlined),
+            selectedIcon: Icon(Icons.local_florist_rounded),
+            label: 'Perfume',
           ),
           NavigationDestination(
             icon: Icon(Icons.bookmark_outline),
@@ -267,11 +273,20 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 12),
         _buildPrimaryCard(
           context,
-          title: 'Cosmetic Analysis',
+          title: 'Skincare Analysis',
           subtitle:
-              'Compare skincare and beauty products using ingredient intelligence.',
-          icon: Icons.brush_rounded,
-          onTap: () => _openCosmeticAnalysis(context),
+              'Compare ingredients, actives, acne friendliness, and skin safety.',
+          icon: Icons.spa_rounded,
+          onTap: () => _openSkincareAnalysis(context),
+        ),
+        const SizedBox(height: 12),
+        _buildPrimaryCard(
+          context,
+          title: 'Perfume Analysis',
+          subtitle:
+              'Compare longevity, sillage, notes, seasons, occasions, and value.',
+          icon: Icons.local_florist_rounded,
+          onTap: () => _openPerfumeAnalysis(context),
         ),
       ],
     );
@@ -397,31 +412,62 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCosmeticTab(BuildContext context) {
+  Widget _buildSkincareTab(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Cosmetic Analysis',
+            'Skincare Analysis',
             style: Theme.of(
               context,
             ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Text(
-            'Compare skincare and beauty products using ingredient intelligence and skin compatibility analysis.',
+            'Compare ingredients, benefits, acne friendliness, sensitive skin suitability, comedogenic risk, actives, fragrance, and overall skin safety.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 20),
           _buildPrimaryCard(
             context,
-            title: 'Scan cosmetic products',
+            title: 'Scan skincare products',
             subtitle:
-                'Upload or scan ingredient lists for active ingredient insights.',
-            icon: Icons.brush_rounded,
-            onTap: () => _openCosmeticAnalysis(context),
+                'Upload or scan labels for active ingredient and safety insights.',
+            icon: Icons.spa_rounded,
+            onTap: () => _openSkincareAnalysis(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPerfumeTab(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Perfume Analysis',
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Compare longevity, sillage, fragrance notes, occasion fit, season fit, gender neutrality, and value for money.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 20),
+          _buildPrimaryCard(
+            context,
+            title: 'Scan perfume products',
+            subtitle:
+                'Upload or scan bottles and boxes for fragrance comparison.',
+            icon: Icons.local_florist_rounded,
+            onTap: () => _openPerfumeAnalysis(context),
           ),
         ],
       ),
@@ -643,10 +689,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _openCosmeticAnalysis(BuildContext context) {
+  void _openSkincareAnalysis(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => CosmeticAnalysisScreen(
+        builder: (context) => SkincareAnalysisScreen(
+          decisionEngine: widget.decisionEngine,
+          comparisonRepository: _comparisonRepository,
+        ),
+      ),
+    );
+  }
+
+  void _openPerfumeAnalysis(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PerfumeAnalysisScreen(
           decisionEngine: widget.decisionEngine,
           comparisonRepository: _comparisonRepository,
         ),

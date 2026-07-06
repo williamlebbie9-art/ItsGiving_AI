@@ -104,15 +104,27 @@ class _AppEntryState extends State<_AppEntry> {
   }
 
   Future<void> _checkOnboardingStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
-    final signInCompleted = prefs.getBool('signin_completed') ?? false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
 
-    setState(() {
-      _showOnboarding = !onboardingCompleted;
-      _showSignIn = onboardingCompleted && !signInCompleted;
-      _checking = false;
-    });
+      final onboardingCompleted =
+          prefs.getBool('onboarding_completed') ?? false;
+      final signInCompleted = prefs.getBool('signin_completed') ?? false;
+
+      setState(() {
+        _showOnboarding = !onboardingCompleted;
+        _showSignIn = onboardingCompleted && !signInCompleted;
+        _checking = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _showOnboarding = false;
+        _showSignIn = false;
+        _checking = false;
+      });
+    }
   }
 
   Future<void> _onAuthComplete() async {

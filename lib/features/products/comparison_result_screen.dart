@@ -16,6 +16,8 @@ class ComparisonResultScreen extends StatefulWidget {
     this.startChatExpanded = false,
     this.isCosmetic = false,
     this.isGeneral = false,
+    this.isSkincare = false,
+    this.isPerfume = false,
     super.key,
   });
 
@@ -25,13 +27,15 @@ class ComparisonResultScreen extends StatefulWidget {
   final bool startChatExpanded;
   final bool isCosmetic;
   final bool isGeneral;
+  final bool isSkincare;
+  final bool isPerfume;
 
   @override
   State<ComparisonResultScreen> createState() => _ComparisonResultScreenState();
 }
 
 class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
-  late bool _isSaved;
+  bool _isSaved = false;
   late bool _chatExpanded;
 
   @override
@@ -52,11 +56,74 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
     }
   }
 
+  bool get _hasFoodDetails =>
+      _hasDetailKey('nutrients') ||
+      _hasDetailKey('calories') ||
+      _hasDetailKey('processedChemicals');
+
+  bool get _hasCosmeticDetails =>
+      _hasDetailKey('priceAndPurchase') &&
+      _hasDetailKey('ingredients') &&
+      !_hasFoodDetails;
+
+  bool get _hasSkincareDetails =>
+      _comparisonType == 'skincare' ||
+      _hasDetailKey('acneFriendliness') ||
+      _hasDetailKey('comedogenicRisk') ||
+      _hasDetailKey('overallSkinSafety');
+
+  bool get _hasPerfumeDetails =>
+      _comparisonType == 'perfume' ||
+      _hasDetailKey('longevity') ||
+      _hasDetailKey('sillage') ||
+      _hasDetailKey('fragranceNotes');
+
+  bool get _hasGeneralDetails =>
+      _hasDetailKey('priceAndPurchase') &&
+      !_hasDetailKey('ingredients') &&
+      !_hasFoodDetails;
+
+  bool get _effectiveIsCosmetic =>
+      widget.isCosmetic ||
+      (!widget.isGeneral &&
+          !_effectiveIsSkincare &&
+          !_effectiveIsPerfume &&
+          _hasCosmeticDetails);
+
+  bool get _effectiveIsGeneral =>
+      widget.isGeneral ||
+      (!widget.isCosmetic &&
+          !_effectiveIsSkincare &&
+          !_effectiveIsPerfume &&
+          _hasGeneralDetails);
+
+  bool get _effectiveIsSkincare => widget.isSkincare || _hasSkincareDetails;
+
+  bool get _effectiveIsPerfume => widget.isPerfume || _hasPerfumeDetails;
+
+  String get _comparisonType {
+    final typeA = widget.comparison.productADetails['comparisonType'];
+    final typeB = widget.comparison.productBDetails['comparisonType'];
+    return (typeA?.trim().isNotEmpty == true ? typeA! : (typeB ?? ''))
+        .toLowerCase()
+        .trim();
+  }
+
+  bool _hasDetailKey(String key) {
+    return (widget.comparison.productADetails[key]?.trim().isNotEmpty ??
+            false) ||
+        (widget.comparison.productBDetails[key]?.trim().isNotEmpty ?? false);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('MMM d, yyyy • h:mm a');
+    final dateFormat = DateFormat('MMM d, yyyy - h:mm a');
     final formattedDate = dateFormat.format(widget.comparison.createdAt);
     final theme = Theme.of(context);
+    final isCosmetic = _effectiveIsCosmetic;
+    final isGeneral = _effectiveIsGeneral;
+    final isSkincare = _effectiveIsSkincare;
+    final isPerfume = _effectiveIsPerfume;
 
     return Scaffold(
       appBar: AppBar(
@@ -103,8 +170,10 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
           ),
 
           // Overview section (only for food — not cosmetic, not general)
-          if (!widget.isCosmetic &&
-              !widget.isGeneral &&
+          if (!isCosmetic &&
+              !isGeneral &&
+              !isSkincare &&
+              !isPerfume &&
               widget.comparison.overview.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
@@ -130,7 +199,9 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
           ),
 
           // Specifications
-          if (widget.comparison.specifications.isNotEmpty)
+          if (!isSkincare &&
+              !isPerfume &&
+              widget.comparison.specifications.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -176,7 +247,9 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
             ),
 
           // Value for Money
-          if (widget.comparison.valueForMoney.isNotEmpty)
+          if (!isSkincare &&
+              !isPerfume &&
+              widget.comparison.valueForMoney.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -756,20 +829,24 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  pick,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: accentColor,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    pick,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: accentColor,
+                    ),
                   ),
                 ),
               ),
@@ -806,6 +883,11 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
   // ─── MODERN COMPARISON CARDS ───────────────────────────────────────────────
 
   Widget _buildModernComparisonCards(ThemeData theme) {
+    final isCosmetic = _effectiveIsCosmetic;
+    final isGeneral = _effectiveIsGeneral;
+    final isSkincare = _effectiveIsSkincare;
+    final isPerfume = _effectiveIsPerfume;
+
     // Per-product detail getters with product-specific fallbacks
     String detailA(String key, {String fallback = 'No details available.'}) =>
         widget.comparison.productADetails[key]?.isNotEmpty == true
@@ -868,6 +950,79 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
           : 'No pros/cons available.',
     );
 
+    if (isSkincare) {
+      return _buildSectionComparisonCards(theme, [
+        _ComparisonSection(
+          'Ingredients',
+          'ingredients',
+          Icons.science_outlined,
+        ),
+        _ComparisonSection('Benefits', 'benefits', Icons.auto_awesome),
+        _ComparisonSection(
+          'Acne friendliness',
+          'acneFriendliness',
+          Icons.healing_outlined,
+        ),
+        _ComparisonSection(
+          'Sensitive skin suitability',
+          'sensitiveSkinSuitability',
+          Icons.health_and_safety_outlined,
+        ),
+        _ComparisonSection(
+          'Comedogenic risk',
+          'comedogenicRisk',
+          Icons.warning_amber_rounded,
+        ),
+        _ComparisonSection(
+          'Active ingredients',
+          'activeIngredients',
+          Icons.bubble_chart_outlined,
+        ),
+        _ComparisonSection(
+          'Fragrance content',
+          'fragranceContent',
+          Icons.air_rounded,
+        ),
+        _ComparisonSection(
+          'Overall skin safety',
+          'overallSkinSafety',
+          Icons.verified_user_outlined,
+        ),
+      ]);
+    }
+
+    if (isPerfume) {
+      return _buildSectionComparisonCards(theme, [
+        _ComparisonSection('Longevity', 'longevity', Icons.timer_outlined),
+        _ComparisonSection('Sillage', 'sillage', Icons.waves_rounded),
+        _ComparisonSection(
+          'Fragrance notes',
+          'fragranceNotes',
+          Icons.local_florist_outlined,
+        ),
+        _ComparisonSection(
+          'Occasion suitability',
+          'occasionSuitability',
+          Icons.event_available_outlined,
+        ),
+        _ComparisonSection(
+          'Season suitability',
+          'seasonSuitability',
+          Icons.wb_sunny_outlined,
+        ),
+        _ComparisonSection(
+          'Gender neutrality',
+          'genderNeutrality',
+          Icons.diversity_3_outlined,
+        ),
+        _ComparisonSection(
+          'Value for money',
+          'valueForMoney',
+          Icons.account_balance_wallet_outlined,
+        ),
+      ]);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -888,7 +1043,7 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
           ),
         ),
         // Price (only shown for general and cosmetic, hidden for food)
-        if (widget.isGeneral || widget.isCosmetic)
+        if (isGeneral || isCosmetic)
           Column(
             children: [
               _buildModernComparisonRow(
@@ -917,7 +1072,7 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
         ),
         const SizedBox(height: 12),
         // Ingredients (shown for food and cosmetic, NOT for general)
-        if (!widget.isGeneral)
+        if (!isGeneral)
           _buildModernComparisonRow(
             theme: theme,
             label: 'Ingredients',
@@ -928,7 +1083,7 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
             iconA: Icons.science_outlined,
             iconB: Icons.science_outlined,
           ),
-        if (!widget.isGeneral) const SizedBox(height: 12),
+        if (!isGeneral) const SizedBox(height: 12),
         // Pros & Cons (shown for all types)
         _buildModernComparisonRow(
           theme: theme,
@@ -977,29 +1132,37 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
             ),
           ),
         ),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Product A card
-            Expanded(
-              child: _buildCompactCard(
-                theme: theme,
-                name: nameA,
-                content: contentA,
-                accentColor: theme.colorScheme.primary,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Product B card
-            Expanded(
-              child: _buildCompactCard(
-                theme: theme,
-                name: nameB,
-                content: contentB,
-                accentColor: theme.colorScheme.secondary,
-              ),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final stackCards = constraints.maxWidth < 520;
+            final cardA = _buildCompactCard(
+              theme: theme,
+              name: nameA,
+              content: contentA,
+              accentColor: theme.colorScheme.primary,
+            );
+            final cardB = _buildCompactCard(
+              theme: theme,
+              name: nameB,
+              content: contentB,
+              accentColor: theme.colorScheme.secondary,
+            );
+
+            if (stackCards) {
+              return Column(
+                children: [cardA, const SizedBox(height: 12), cardB],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: cardA),
+                const SizedBox(width: 12),
+                Expanded(child: cardB),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -1111,43 +1274,96 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
   }
 
   Widget _buildModernBadge(ThemeData theme, String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.primaryContainer.withValues(alpha: 0.7),
-            theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              theme.colorScheme.primaryContainer.withValues(alpha: 0.7),
+              theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.primary,
+              ),
+            ),
           ],
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.2),
+      ),
+    );
+  }
+
+  Widget _buildSectionComparisonCards(
+    ThemeData theme,
+    List<_ComparisonSection> sections,
+  ) {
+    String detailA(String key) =>
+        widget.comparison.productADetails[key]?.trim().isNotEmpty == true
+        ? widget.comparison.productADetails[key]!
+        : 'No details available.';
+    String detailB(String key) =>
+        widget.comparison.productBDetails[key]?.trim().isNotEmpty == true
+        ? widget.comparison.productBDetails[key]!
+        : 'No details available.';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              Icon(Icons.compare, size: 18, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Detailed Comparison',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.w600,
-            ),
+        for (final section in sections) ...[
+          _buildModernComparisonRow(
+            theme: theme,
+            label: section.label,
+            nameA: widget.comparison.productAName,
+            nameB: widget.comparison.productBName,
+            contentA: detailA(section.key),
+            contentB: detailB(section.key),
+            iconA: section.icon,
+            iconB: section.icon,
           ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: theme.colorScheme.primary,
-            ),
-          ),
+          if (section != sections.last) const SizedBox(height: 12),
         ],
-      ),
+      ],
     );
   }
 
@@ -1312,4 +1528,12 @@ class _ComparisonResultScreenState extends State<ComparisonResultScreen> {
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+class _ComparisonSection {
+  const _ComparisonSection(this.label, this.key, this.icon);
+
+  final String label;
+  final String key;
+  final IconData icon;
 }

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,7 +36,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final List<_OnboardingPage> _pages = [
     _OnboardingPage(
       title: 'Make Smarter Choices',
-      subtitle: 'Compare products, foods, and cosmetics instantly with AI.',
+      subtitle:
+          'Compare products, foods, skincare, and perfumes instantly with AI.',
       buttonLabel: 'Continue',
       illustration: _OnboardingIllustration.splitProducts,
     ),
@@ -140,48 +142,54 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   final page = _pages[index];
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 24),
-                        _OnboardingHeader(
-                          stepIndex: index,
-                          page: page,
-                          colorScheme: colorScheme,
-                        ),
-                        const SizedBox(height: 28),
-                        Expanded(
-                          child: _OnboardingIllustrationWidget(
-                            type: page.illustration,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          _OnboardingHeader(
+                            stepIndex: index,
+                            page: page,
                             colorScheme: colorScheme,
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          page.title,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 32,
-                              ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          page.subtitle,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                color: colorScheme.onSurface.withValues(
-                                  alpha: 0.75,
-                                ),
-                                height: 1.5,
-                              ),
-                        ),
-                        if (page.highlights != null) ...[
+                          const SizedBox(height: 28),
+                          SizedBox(
+                            height: min(
+                              320,
+                              MediaQuery.of(context).size.height * 0.42,
+                            ),
+                            child: _OnboardingIllustrationWidget(
+                              type: page.illustration,
+                              colorScheme: colorScheme,
+                            ),
+                          ),
                           const SizedBox(height: 24),
-                          _OnboardingHighlights(items: page.highlights!),
+                          Text(
+                            page.title,
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 32,
+                                ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            page.subtitle,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: 0.75,
+                                  ),
+                                  height: 1.5,
+                                ),
+                          ),
+                          if (page.highlights != null) ...[
+                            const SizedBox(height: 24),
+                            _OnboardingHighlights(items: page.highlights!),
+                          ],
+                          const SizedBox(height: 20),
                         ],
-                        const SizedBox(height: 20),
-                      ],
+                      ),
                     ),
                   );
                 },
@@ -392,23 +400,57 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    switch (type) {
-      case _OnboardingIllustration.splitProducts:
-        return _buildSplitProducts();
-      case _OnboardingIllustration.compareItems:
-        return _buildCompareItems();
-      case _OnboardingIllustration.foodAnalysis:
-        return _buildFoodAnalysis();
-      case _OnboardingIllustration.cosmeticsAnalysis:
-        return _buildCosmeticsAnalysis();
-      case _OnboardingIllustration.aiVerdict:
-        return _buildAiVerdict();
-      case _OnboardingIllustration.readyToDecide:
-        return _buildReadyToDecide();
-    }
+    // Build illustration using available constraints so child widgets can size
+    // themselves relative to the available area and avoid fixed-height overflows.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final box = BoxConstraints(
+          maxWidth: min(760, constraints.maxWidth),
+          maxHeight: constraints.maxHeight,
+        );
+
+        Widget content;
+        switch (type) {
+          case _OnboardingIllustration.splitProducts:
+            content = _buildSplitProducts(box);
+            break;
+          case _OnboardingIllustration.compareItems:
+            content = _buildCompareItems(box);
+            break;
+          case _OnboardingIllustration.foodAnalysis:
+            content = _buildFoodAnalysis(box);
+            break;
+          case _OnboardingIllustration.cosmeticsAnalysis:
+            content = _buildCosmeticsAnalysis(box);
+            break;
+          case _OnboardingIllustration.aiVerdict:
+            content = _buildAiVerdict(box);
+            break;
+          case _OnboardingIllustration.readyToDecide:
+            content = _buildReadyToDecide(box);
+            break;
+        }
+
+        return SizedBox(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.center,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: box.maxWidth,
+                maxHeight: min(600, box.maxHeight),
+              ),
+              child: content,
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  Widget _buildSplitProducts() {
+  Widget _buildSplitProducts(BoxConstraints box) {
     return Center(
       child: Stack(
         alignment: Alignment.center,
@@ -416,6 +458,7 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
           Positioned(
             left: 20,
             child: _productCard(
+              box: box,
               color: colorScheme.primaryContainer,
               icon: Icons.shopping_bag_rounded,
               label: 'Product A',
@@ -424,14 +467,15 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
           Positioned(
             right: 20,
             child: _productCard(
+              box: box,
               color: colorScheme.secondaryContainer,
               icon: Icons.shopping_bag_outlined,
               label: 'Product B',
             ),
           ),
           Container(
-            width: 180,
-            height: 230,
+            width: min(220, box.maxWidth * 0.45),
+            height: min(280, box.maxHeight * 0.85),
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -478,7 +522,8 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildCompareItems() {
+  Widget _buildCompareItems(BoxConstraints box) {
+    final containerHeight = min(200.0, box.maxHeight * 0.6);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -488,10 +533,10 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
             icon: Icons.camera_alt_rounded,
             label: 'Photo',
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: max(12, box.maxHeight * 0.04)),
           Container(
-            height: 180,
-            width: double.infinity,
+            height: containerHeight,
+            width: box.maxWidth,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [colorScheme.primary, colorScheme.secondary],
@@ -503,27 +548,32 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned(
-                  top: 18,
-                  left: 18,
+                  top: containerHeight * 0.08,
+                  left: box.maxWidth * 0.04,
                   child: _smallCard(
+                    box: box,
                     icon: Icons.local_grocery_store_rounded,
                     label: 'A',
                   ),
                 ),
                 Positioned(
-                  bottom: 18,
-                  right: 18,
-                  child: _smallCard(icon: Icons.laptop_mac_rounded, label: 'B'),
+                  bottom: containerHeight * 0.08,
+                  right: box.maxWidth * 0.04,
+                  child: _smallCard(
+                    box: box,
+                    icon: Icons.laptop_mac_rounded,
+                    label: 'B',
+                  ),
                 ),
                 Positioned(
-                  top: 28,
-                  right: 28,
+                  top: containerHeight * 0.12,
+                  right: box.maxWidth * 0.08,
                   child: Text(
                     'Compare',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                      fontSize: max(14, box.maxHeight * 0.03),
                     ),
                   ),
                 ),
@@ -535,30 +585,33 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildFoodAnalysis() {
+  Widget _buildFoodAnalysis(BoxConstraints box) {
+    final mainSize = min(260.0, box.maxHeight * 0.8);
     return Center(
       child: Stack(
         alignment: Alignment.center,
         children: [
           Positioned(
-            left: 40,
+            left: max(12, box.maxWidth * 0.06),
             child: _nutritionCard(
+              box: box,
               label: 'Nutrition',
               icon: Icons.restaurant_rounded,
               color: colorScheme.primaryContainer,
             ),
           ),
           Positioned(
-            right: 40,
+            right: max(12, box.maxWidth * 0.06),
             child: _nutritionCard(
+              box: box,
               label: 'Ingredients',
               icon: Icons.eco_rounded,
               color: colorScheme.secondaryContainer,
             ),
           ),
           Container(
-            width: 220,
-            height: 220,
+            width: mainSize,
+            height: mainSize,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [colorScheme.primary, colorScheme.primaryContainer],
@@ -567,10 +620,10 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
               ),
               borderRadius: BorderRadius.circular(32),
             ),
-            child: const Center(
+            child: Center(
               child: Icon(
                 Icons.fastfood_rounded,
-                size: 72,
+                size: min(88, mainSize * 0.32),
                 color: Colors.white,
               ),
             ),
@@ -580,7 +633,9 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildCosmeticsAnalysis() {
+  Widget _buildCosmeticsAnalysis(BoxConstraints box) {
+    final outer = min(160.0, box.maxHeight * 0.7);
+    final inner = outer * 0.72;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -588,24 +643,24 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
           Stack(
             alignment: Alignment.center,
             children: [
-              _circleDot(color: colorScheme.primaryContainer),
-              _circleDot(color: colorScheme.secondaryContainer, size: 116),
+              _circleDot(color: colorScheme.primaryContainer, size: outer),
+              _circleDot(color: colorScheme.secondaryContainer, size: inner),
               Container(
-                width: 140,
-                height: 140,
+                width: inner * 0.9,
+                height: inner * 0.9,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(38),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.spa_rounded,
-                  size: 60,
-                  color: Color(0xFF8843FF),
+                  size: min(60, inner * 0.5),
+                  color: const Color(0xFF8843FF),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 22),
+          SizedBox(height: max(14, box.maxHeight * 0.06)),
           _featureBubble(
             color: colorScheme.surfaceContainerHighest,
             icon: Icons.health_and_safety_rounded,
@@ -617,15 +672,16 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildAiVerdict() {
+  Widget _buildAiVerdict(BoxConstraints box) {
+    final cardSize = min(280.0, box.maxHeight * 0.78);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 240,
-            height: 240,
-            padding: const EdgeInsets.all(20),
+            width: cardSize,
+            height: cardSize,
+            padding: EdgeInsets.all(max(12, cardSize * 0.06)),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(32),
@@ -645,23 +701,23 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
                     Icon(
                       Icons.check_circle_rounded,
                       color: colorScheme.primary,
-                      size: 28,
+                      size: max(18, cardSize * 0.08),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: max(8, cardSize * 0.03)),
                     Text(
                       'Winner',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                        fontSize: max(14, cardSize * 0.06),
                         color: colorScheme.onSurface,
                       ),
                     ),
                   ],
                 ),
-                const Icon(
+                Icon(
                   Icons.bar_chart_rounded,
-                  size: 64,
-                  color: Color(0xFF6C63FF),
+                  size: min(84, cardSize * 0.22),
+                  color: const Color(0xFF6C63FF),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -671,13 +727,15 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: colorScheme.onSurface,
+                        fontSize: max(12, cardSize * 0.045),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: max(6, cardSize * 0.02)),
                     Text(
                       'Clear recommendation',
                       style: TextStyle(
                         color: colorScheme.onSurface.withValues(alpha: 0.75),
+                        fontSize: max(12, cardSize * 0.04),
                       ),
                     ),
                   ],
@@ -685,7 +743,7 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: max(12, box.maxHeight * 0.04)),
           Text(
             'AI verdict keeps the choice simple and actionable.',
             textAlign: TextAlign.center,
@@ -699,14 +757,15 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildReadyToDecide() {
+  Widget _buildReadyToDecide(BoxConstraints box) {
+    final size = min(260.0, box.maxHeight * 0.72);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 220,
-            height: 220,
+            width: size,
+            height: size,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [colorScheme.primary, colorScheme.secondary],
@@ -715,21 +774,21 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
               ),
               borderRadius: BorderRadius.circular(40),
             ),
-            child: const Center(
+            child: Center(
               child: Icon(
                 Icons.rocket_launch_rounded,
-                size: 72,
+                size: min(84, size * 0.28),
                 color: Colors.white,
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: max(12, box.maxHeight * 0.04)),
           Text(
             'Ready to decide faster and smarter.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: colorScheme.onSurface.withValues(alpha: 0.75),
-              fontSize: 16,
+              fontSize: max(12, box.maxHeight * 0.035),
               height: 1.5,
             ),
           ),
@@ -739,13 +798,14 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
   }
 
   Widget _productCard({
+    required BoxConstraints box,
     required Color color,
     required IconData icon,
     required String label,
   }) {
     return Container(
-      width: 128,
-      height: 182,
+      width: min(160, box.maxWidth * 0.18),
+      height: min(220, box.maxHeight * 0.7),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: color,
@@ -768,11 +828,17 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
     );
   }
 
-  Widget _smallCard({required IconData icon, required String label}) {
+  Widget _smallCard({
+    required BoxConstraints box,
+    required IconData icon,
+    required String label,
+  }) {
+    final double w = min(110.0, box.maxWidth * 0.14);
+    final double h = min(120.0, box.maxHeight * 0.32);
     return Container(
-      width: 82,
-      height: 92,
-      padding: const EdgeInsets.all(12),
+      width: w,
+      height: h,
+      padding: EdgeInsets.all(max(8, w * 0.09)),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(20),
@@ -787,7 +853,7 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: colorScheme.primary, size: 24),
+          Icon(icon, color: colorScheme.primary, size: min(28, w * 0.28)),
           const Spacer(),
           Text(
             label,
@@ -802,13 +868,14 @@ class _OnboardingIllustrationWidget extends StatelessWidget {
   }
 
   Widget _nutritionCard({
+    required BoxConstraints box,
     required String label,
     required IconData icon,
     required Color color,
   }) {
     return Container(
-      width: 144,
-      height: 132,
+      width: min(180, box.maxWidth * 0.22),
+      height: min(180, box.maxHeight * 0.5),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: color,

@@ -118,7 +118,7 @@ class _FoodAnalysisScreenState extends State<FoodAnalysisScreen> {
                 final label = category == DecisionCategory.food
                     ? 'Food'
                     : category == DecisionCategory.fashion
-                    ? 'Cosmetics'
+                    ? 'Beauty'
                     : 'General';
                 return ChoiceChip(
                   label: Text(label),
@@ -249,16 +249,20 @@ class _FoodAnalysisScreenState extends State<FoodAnalysisScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                FilledButton.icon(
-                  onPressed: onCameraTap,
-                  icon: const Icon(Icons.camera_alt_rounded),
-                  label: const Text('Camera'),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onCameraTap,
+                    icon: const Icon(Icons.camera_alt_rounded),
+                    label: const Text('Camera'),
+                  ),
                 ),
                 const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: onGalleryTap,
-                  icon: const Icon(Icons.photo_library_rounded),
-                  label: const Text('Gallery'),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onGalleryTap,
+                    icon: const Icon(Icons.photo_library_rounded),
+                    label: const Text('Gallery'),
+                  ),
                 ),
               ],
             ),

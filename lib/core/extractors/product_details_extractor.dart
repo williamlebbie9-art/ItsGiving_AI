@@ -11,10 +11,26 @@ class ProductDetailsExtractor {
     'EFFECTS_BENEFITS',
     'NUTRIENTS',
     'INGREDIENTS',
+    'BENEFITS',
     'PROS_CONS',
     'PROCESSED_CHEMICALS',
     'CALORIES',
     'RECOMMENDATION',
+    // Skincare markers
+    'ACNE_FRIENDLINESS',
+    'SENSITIVE_SKIN_SUITABILITY',
+    'COMEDOGENIC_RISK',
+    'ACTIVE_INGREDIENTS',
+    'FRAGRANCE_CONTENT',
+    'OVERALL_SKIN_SAFETY',
+    // Perfume markers
+    'LONGEVITY',
+    'SILLAGE',
+    'FRAGRANCE_NOTES',
+    'OCCASION_SUITABILITY',
+    'SEASON_SUITABILITY',
+    'GENDER_NEUTRALITY',
+    'VALUE_FOR_MONEY',
   ];
 
   /// Extracts a specific section from [text] using markers like

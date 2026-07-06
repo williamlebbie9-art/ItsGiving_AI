@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../core/services/decision_engine.dart';
@@ -56,6 +57,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
         return 'Subscribe to Premium - \$2.99 / mo';
       case 2:
         return 'Subscribe to Pro - \$4.99 / mo';
+      case 3:
+        return 'Start 14-day Free Trial - \$34.99 / year';
       default:
         return 'Start Free';
     }
@@ -193,25 +196,37 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 ),
               ),
             const SizedBox(height: 14),
-            ...items.map(
-              (item) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.check_circle, color: Colors.white, size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        item,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.88),
-                          fontSize: 13,
-                          height: 1.45,
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: items
+                      .map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  item,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.88),
+                                    fontSize: 13,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                      )
+                      .toList(),
                 ),
               ),
             ),
@@ -273,6 +288,34 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2D3D87),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.timer, color: Colors.white, size: 18),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Start your 14-day free trial on all paid plans',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -306,7 +349,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     ),
                     const SizedBox(height: 28),
                     SizedBox(
-                      height: 440,
+                      height: min(
+                        500,
+                        MediaQuery.of(context).size.height * 0.62,
+                      ),
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
@@ -361,6 +407,23 @@ class _PaywallScreenState extends State<PaywallScreen> {
                               backgroundColor: const Color(0xFF132043),
                               highlighted: false,
                               index: 2,
+                            ),
+                            _buildPricingCard(
+                              tier: 'PROMAX',
+                              label: 'PROMAX',
+                              price: '\$34.99',
+                              sublabel: 'per year',
+                              items: [
+                                'Unlimited comparisons',
+                                'Everything in Pro',
+                                'Priority AI responses',
+                                'Early access to new features',
+                                'Premium support',
+                              ],
+                              borderColor: const Color(0xFF21B3FF),
+                              backgroundColor: const Color(0xFF103154),
+                              highlighted: true,
+                              index: 3,
                             ),
                           ],
                         ),
