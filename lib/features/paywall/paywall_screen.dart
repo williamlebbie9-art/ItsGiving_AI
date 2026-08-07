@@ -249,7 +249,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        title: const Text('Decide AI'),
+        title: const Text('its giving.AI'),
         leading: widget.fromUpgrade
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),

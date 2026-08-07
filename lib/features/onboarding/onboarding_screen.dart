@@ -44,7 +44,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _OnboardingPage(
       title: 'Scan & Compare',
       subtitle:
-          'Take a photo or upload images of two products and let Decide AI analyze the differences.',
+          'Take a photo or upload images of two products and let its giving.AI analyze the differences.',
       highlights: [
         'Product comparisons',
         'Feature breakdowns',
@@ -81,7 +81,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _OnboardingPage(
       title: 'Get Clear Recommendations',
       subtitle:
-          'Decide AI summarizes the important differences and helps you choose the better option for your needs.',
+          'its giving.AI summarizes the important differences and helps you choose the better option for your needs.',
       buttonLabel: 'Next',
       illustration: _OnboardingIllustration.aiVerdict,
     ),

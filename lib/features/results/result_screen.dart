@@ -115,7 +115,7 @@ class ResultScreen extends StatelessWidget {
 
   String _toShareText() {
     return '''
-Decide AI Result
+its giving.AI Result
 Question: $query
 Category: ${result.category.title}
 Best Choice: ${result.bestChoice}

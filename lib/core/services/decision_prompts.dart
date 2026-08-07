@@ -101,7 +101,7 @@ Provide one practical style improvement tip.
 
     if (request.plainResponse) {
       return '''
-You are DecideAI.
+You are its giving.AI.
 $system
 
 User question: ${request.query}
@@ -113,7 +113,7 @@ Answer the user's question directly in 1-2 concise sentences focused on the ques
     }
 
     return '''
-You are DecideAI.
+You are its giving.AI.
 $system
 
 User question: ${request.query}

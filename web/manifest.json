@@ -1,11 +1,11 @@
 {
-    "name": "Decide AI",
-    "short_name": "DecideAI",
+    "name": "its giving.AI",
+    "short_name": "its giving.AI",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F3F3F3",
     "theme_color": "#081644",
-    "description": "A new Flutter project.",
+    "description": "AI-powered personal glow-up coach.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

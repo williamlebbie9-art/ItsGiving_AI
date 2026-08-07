@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'core/services/decision_engine.dart';
-import 'core/storage/history_repository.dart';
-import 'core/storage/profile_repository.dart';
-import 'features/auth/sign_in_screen.dart';
-import 'features/home/home_screen.dart';
-import 'features/onboarding/onboarding_screen.dart';
+import 'features/glowup/glowup_app.dart';
 
 class DecideAiApp extends StatelessWidget {
   const DecideAiApp({super.key});
@@ -14,30 +9,57 @@ class DecideAiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF7B6CF6),
+      seedColor: const Color(0xFFFF5FA2),
       brightness: Brightness.light,
     );
 
     return MaterialApp(
-      title: 'Decide AI',
+      title: 'its giving.AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: baseScheme,
-        scaffoldBackgroundColor: const Color(0xFFF4F2FA),
+        scaffoldBackgroundColor: const Color(0xFFFFF3FA),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFFFFFFF),
-          foregroundColor: Color(0xFF1C1F3B),
+          backgroundColor: Colors.transparent,
+          foregroundColor: Color(0xFF251B2F),
           elevation: 0,
           centerTitle: true,
         ),
         textTheme: ThemeData.light().textTheme.apply(
-          bodyColor: const Color(0xFF27304F),
-          displayColor: const Color(0xFF27304F),
+          bodyColor: const Color(0xFF251B2F),
+          displayColor: const Color(0xFF251B2F),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(54),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(54),
+            side: const BorderSide(color: Color(0xFFFF9AC2)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        chipTheme: ChipThemeData(
+          backgroundColor: Colors.white.withValues(alpha: 0.64),
+          selectedColor: const Color(0xFFFFD8EA),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
+          ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white,
+          fillColor: Colors.white.withValues(alpha: 0.76),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
             borderSide: BorderSide.none,
@@ -52,34 +74,18 @@ class DecideAiApp extends StatelessWidget {
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF7B6CF6),
+          seedColor: const Color(0xFFFF5FA2),
           brightness: Brightness.dark,
         ),
-        scaffoldBackgroundColor: const Color(0xFF090B14),
+        scaffoldBackgroundColor: const Color(0xFF160D1E),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF0F172A),
+          backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
         ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          color: const Color(0xFF111827),
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFF111827),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide.none,
-          ),
-        ),
       ),
-      themeMode: ThemeMode.dark,
+      themeMode: ThemeMode.light,
       home: const _AppEntry(),
     );
   }
@@ -95,7 +101,6 @@ class _AppEntry extends StatefulWidget {
 class _AppEntryState extends State<_AppEntry> {
   bool _checking = true;
   bool _showOnboarding = false;
-  bool _showSignIn = false;
 
   @override
   void initState() {
@@ -109,27 +114,19 @@ class _AppEntryState extends State<_AppEntry> {
       if (!mounted) return;
 
       final onboardingCompleted =
-          prefs.getBool('onboarding_completed') ?? false;
-      final signInCompleted = prefs.getBool('signin_completed') ?? false;
+          prefs.getBool('glowup_onboarding_completed') ?? false;
 
       setState(() {
         _showOnboarding = !onboardingCompleted;
-        _showSignIn = onboardingCompleted && !signInCompleted;
         _checking = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _showOnboarding = false;
-        _showSignIn = false;
         _checking = false;
       });
     }
-  }
-
-  Future<void> _onAuthComplete() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('signin_completed', true);
   }
 
   @override
@@ -138,32 +135,10 @@ class _AppEntryState extends State<_AppEntry> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final decisionEngine = DecisionEngine();
-    final historyRepository = HistoryRepository();
-    final profileRepository = ProfileRepository();
-
     if (_showOnboarding) {
-      return OnboardingScreen(
-        decisionEngine: decisionEngine,
-        historyRepository: historyRepository,
-        profileRepository: profileRepository,
-      );
+      return const GlowOnboardingScreen();
     }
 
-    if (_showSignIn) {
-      return SignInScreen(
-        decisionEngine: decisionEngine,
-        historyRepository: historyRepository,
-        profileRepository: profileRepository,
-        onAuthComplete: _onAuthComplete,
-      );
-    }
-
-    // Skip sign-in and paywall — go straight to home
-    return HomeScreen(
-      decisionEngine: decisionEngine,
-      historyRepository: historyRepository,
-      profileRepository: profileRepository,
-    );
+    return const GlowUpShell();
   }
 }
