@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'features/glowup/glow_app_shell.dart';
 import 'features/glowup/glowup_app.dart';
 
-class DecideAiApp extends StatelessWidget {
-  const DecideAiApp({super.key});
+class GivingAiApp extends StatelessWidget {
+  const GivingAiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +140,6 @@ class _AppEntryState extends State<_AppEntry> {
       return const GlowOnboardingScreen();
     }
 
-    return const GlowUpShell();
+    return const GlowAppShell();
   }
 }

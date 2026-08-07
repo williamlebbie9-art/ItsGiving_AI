@@ -1,27 +1,26 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:decide_ai/app.dart';
 
 void main() {
-  testWidgets('renders redesigned Decide AI home screen', (
+  testWidgets('renders its giving.AI glow-up home screen', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const DecideAiApp());
+    SharedPreferences.setMockInitialValues({
+      'glowup_onboarding_completed': true,
+    });
+
+    await tester.pumpWidget(const GivingAiApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Decide AI'), findsOneWidget);
-    expect(find.text('Make smarter decisions instantly'), findsOneWidget);
-    expect(find.text('Choose a category'), findsOneWidget);
-    expect(find.text('What should I buy, eat, or choose?'), findsOneWidget);
-
-    await tester.scrollUntilVisible(
-      find.text('Smart Suggestions'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Smart Suggestions'), findsOneWidget);
+    expect(find.text('its giving.AI'), findsOneWidget);
+    expect(find.text('AI Glow Scan'), findsOneWidget);
+    expect(find.text('Glow'), findsOneWidget);
+    expect(find.text('Scan'), findsOneWidget);
+    expect(find.text('Plan'), findsOneWidget);
+    expect(find.text('Diary'), findsOneWidget);
+    expect(find.text('Coach'), findsOneWidget);
+    expect(find.text('Inspo'), findsOneWidget);
   });
 }

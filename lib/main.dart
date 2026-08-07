@@ -20,5 +20,5 @@ Future<void> main() async {
   } catch (_) {
     // App can still run without Firebase configuration on all platforms.
   }
-  runApp(const ProviderScope(child: DecideAiApp()));
+  runApp(const ProviderScope(child: GivingAiApp()));
 }
