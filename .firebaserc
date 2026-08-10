@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "decide-ai-89445"
-  }
+    "default": "decide-ai-89445",
+    "open ai api k": "decide-ai-89445"
+  },
+  "targets": {},
+  "etags": {}
 }

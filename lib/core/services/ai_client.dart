@@ -319,337 +319,44 @@ class AiClient {
     required DecisionCategory category,
     required DecisionRequest request,
   }) {
-    if (category == DecisionCategory.food) {
-      final best = request.compareOptions.isNotEmpty
-          ? request.compareOptions.first
-          : _foodBestChoice(request);
-      final isProductA =
-          request.compareOptions.isNotEmpty &&
-          request.compareOptions.first.contains('Product A');
+    if (category == DecisionCategory.glowup) {
       return DecisionResult(
-        bestChoice: best,
-        alternatives: _foodAlternatives(request),
-        reasoning: _foodReasoning(request, best),
-        pros: _foodPros(request),
-        cons: _foodCons(request),
-        confidenceScore: isProductA ? '0.82' : '0.76',
-        category: category,
-      );
-    }
-
-    if (category == DecisionCategory.travel) {
-      final best = request.compareOptions.isNotEmpty
-          ? request.compareOptions.first
-          : _travelBestChoice(request);
-      return DecisionResult(
-        bestChoice: best,
-        alternatives: _travelAlternatives(request),
-        reasoning: _travelReasoning(request, best),
-        pros: _travelPros(request),
-        cons: _travelCons(request),
-        confidenceScore: request.compareOptions.isNotEmpty ? '0.78' : '0.74',
-        category: category,
-      );
-    }
-
-    if (category == DecisionCategory.fashion) {
-      // Differentiate mock responses based on the compare option
-      final isProductA =
-          request.compareOptions.isNotEmpty &&
-          (request.compareOptions.first.contains('Product A'));
-      final confidence = isProductA ? '0.86' : '0.80';
-      final best = request.compareOptions.isNotEmpty
-          ? request.compareOptions.first
-          : 'Smart-casual layered outfit';
-
-      if (isProductA) {
-        return DecisionResult(
-          bestChoice: best,
-          alternatives: const ['Monochrome minimal outfit'],
-          reasoning:
-              'Product A has a strong formula with hydrating ingredients like Hyaluronic Acid and Niacinamide. '
-              'The formulation uses gentle surfactants and the pH level is balanced for daily use. '
-              'Price range: approximately \$25-\$35. '
-              'Effects: Deep hydration, improved skin texture, and antioxidant protection. '
-              'Ingredients: Water, Glycerin, Niacinamide, Hyaluronic Acid, Ceramides. '
-              'Estimated price: \$28-\$35 at Sephora or Ulta.',
-          pros: const [
-            'Estimated price: \$28-\$35 at Sephora or Ulta',
-            'Hydrating formula with Hyaluronic Acid',
-            'Contains Niacinamide for brightening',
-            'Gentle enough for sensitive skin',
-            'Good value: high-quality ingredients at mid-range price',
-          ],
-          cons: const [
-            'Contains fragrance which may irritate some',
-            'Thicker consistency not ideal for oily skin',
-          ],
-          confidenceScore: confidence,
-          category: category,
-        );
-      }
-
-      // Product B
-      return DecisionResult(
-        bestChoice: best,
-        alternatives: const ['Relaxed streetwear look'],
+        bestChoice: 'Consistent glow-up routine',
+        alternatives: const [
+          'Morning skincare + SPF',
+          'Evening skincare routine',
+          'Weekly self-care ritual',
+        ],
         reasoning:
-            'Product B uses a lightweight gel-cream formula with Vitamin C and Peptides. '
-            'The formulation is fragrance-free and designed for morning use under sunscreen. '
-            'Price range: approximately \$35-\$50. '
-            'Effects: Brightening, firming, and protection against environmental stressors. '
-            'Ingredients: Water, Ascorbic Acid (Vitamin C), Peptides, Squalane, Tocopherol. '
-            'Estimated price: \$38-\$48 at Sephora or the brand website.',
+            'Your glow-up journey is about consistent, achievable habits. '
+            'Focus on building a daily skincare routine with SPF, staying hydrated, '
+            'getting quality sleep, and adding gentle movement. '
+            'Small daily actions compound into visible results over time.',
         pros: const [
-          'Estimated price: \$38-\$48 at Sephora or brand website',
-          'Vitamin C for brightening and antioxidant protection',
-          'Peptides support collagen production',
-          'Fragrance-free for sensitive skin',
-          'Lightweight gel texture absorbs quickly',
+          'Build a consistent AM and PM skincare routine',
+          'Drink 2L+ of water daily',
+          'Aim for 7-8 hours of quality sleep',
+          'Move your body 30 minutes daily',
+          'Practice daily gratitude or journaling',
         ],
         cons: const [
-          'Higher price point compared to similar products',
-          'Vitamin C stability requires opaque packaging',
+          'Consistency takes time to build',
+          'Results appear gradually over weeks',
         ],
-        confidenceScore: confidence,
-        category: category,
-      );
-    }
-
-    if (category == DecisionCategory.products) {
-      final best = request.compareOptions.isNotEmpty
-          ? request.compareOptions.first
-          : _productBestChoice(request);
-      final isProductA =
-          request.compareOptions.isNotEmpty &&
-          request.compareOptions.first.contains('Product A');
-      return DecisionResult(
-        bestChoice: best,
-        alternatives: _productAlternatives(request),
-        reasoning: _productReasoning(request, best),
-        pros: _productPros(request, best),
-        cons: _productCons(request),
-        confidenceScore: isProductA ? '0.87' : '0.81',
+        confidenceScore: '0.85',
         category: category,
       );
     }
 
     return DecisionResult(
-      bestChoice: 'Balanced recommendation for ${category.title}',
-      alternatives: const ['Safer option', 'Higher-reward option'],
-      reasoning: 'Based on your context, this is the strongest practical fit.',
+      bestChoice: 'Balanced style recommendation',
+      alternatives: const ['Classic look', 'Trend-forward look'],
+      reasoning:
+          'Based on your context, this is the strongest practical fit for your style goals.',
       pros: const ['Context-aware', 'Low-risk'],
       cons: const ['Generalized without deeper data'],
-      confidenceScore: '0.72',
+      confidenceScore: '0.78',
       category: category,
     );
-  }
-
-  String _foodBestChoice(DecisionRequest request) {
-    final budget = (request.budget ?? '').toLowerCase();
-    final occasion = (request.occasion ?? '').toLowerCase();
-
-    if (occasion.contains('date')) {
-      return 'Cozy bistro with romantic ambiance and reservation support';
-    }
-    if (budget.contains('low') ||
-        budget.contains('cheap') ||
-        budget.contains('under')) {
-      return 'Highly rated local casual spot with strong value meals';
-    }
-    return 'Balanced mid-range restaurant with quality consistency';
-  }
-
-  List<String> _foodAlternatives(DecisionRequest request) {
-    if (request.compareOptions.isNotEmpty) {
-      return request.compareOptions.skip(1).toList(growable: false);
-    }
-    return const [
-      'Quick-serve option with best speed',
-      'Premium dining option for special occasions',
-    ];
-  }
-
-  String _foodReasoning(DecisionRequest request, String best) {
-    return 'Picked "$best" because it balances budget fit, location convenience, and the occasion context. '
-        'It also provides the best quality-to-price confidence among likely nearby options.';
-  }
-
-  List<String> _foodPros(DecisionRequest request) {
-    final withLocation = (request.location ?? '').trim().isNotEmpty;
-    return [
-      'Strong budget-to-quality balance',
-      if (withLocation) 'Aligned with your stated area',
-      'Suitable vibe for the occasion',
-    ];
-  }
-
-  List<String> _foodCons(DecisionRequest request) {
-    return const [
-      'Menu quality may vary by time/day',
-      'Wait times can change at peak hours',
-    ];
-  }
-
-  String _travelBestChoice(DecisionRequest request) {
-    final budget = (request.budget ?? '').toLowerCase();
-    final query = request.query.toLowerCase();
-    if (budget.contains('500') ||
-        budget.contains('low') ||
-        budget.contains('budget')) {
-      return 'Short-haul city break with strong value flights and transit';
-    }
-    if (query.contains('adventure')) {
-      return 'Nature-forward destination with compact multi-activity itinerary';
-    }
-    return 'Balanced destination with good weather window and manageable logistics';
-  }
-
-  List<String> _travelAlternatives(DecisionRequest request) {
-    if (request.compareOptions.isNotEmpty) {
-      return request.compareOptions.skip(1).toList(growable: false);
-    }
-    return const [
-      'Budget-first destination with fewer premium experiences',
-      'Premium destination with higher comfort and cost',
-    ];
-  }
-
-  String _travelReasoning(DecisionRequest request, String best) {
-    return 'Picked "$best" for the best mix of budget realism, trip-time efficiency, and experience fit. '
-        'Estimated spend allocation should prioritize transport and lodging first, then activities.';
-  }
-
-  List<String> _travelPros(DecisionRequest request) {
-    return const [
-      'Practical for common budget ranges',
-      'High experience value per day',
-      'Lower planning friction',
-    ];
-  }
-
-  List<String> _travelCons(DecisionRequest request) {
-    return const [
-      'Exact pricing depends on booking window',
-      'Weather seasonality can shift itinerary quality',
-    ];
-  }
-
-  String _productBestChoice(DecisionRequest request) {
-    final query = request.query.toLowerCase();
-    final budget = (request.budget ?? '').toLowerCase();
-
-    if (query.contains('phone') || query.contains('smartphone')) {
-      if (budget.contains('300') || budget.contains('under')) {
-        return 'Samsung Galaxy A15 5G';
-      }
-      return 'Google Pixel 8a';
-    }
-
-    if (query.contains('laptop')) {
-      return 'Acer Aspire 5';
-    }
-
-    if (query.contains('headphone') || query.contains('earbud')) {
-      return 'Soundcore Liberty 4 NC';
-    }
-
-    return 'Best value option in your budget';
-  }
-
-  List<String> _productAlternatives(DecisionRequest request) {
-    if (request.compareOptions.isNotEmpty) {
-      final priceHint = _productPriceHint(request);
-      final storeHint = _productStoreHint(request);
-      return request.compareOptions
-          .skip(1)
-          .map((option) {
-            return '$option • $priceHint • $storeHint';
-          })
-          .toList(growable: false);
-    }
-
-    final query = request.query.toLowerCase();
-    if (query.contains('phone') || query.contains('smartphone')) {
-      return const ['Moto G Power (2024)', 'Nokia G42 5G'];
-    }
-    if (query.contains('laptop')) {
-      return const ['Lenovo IdeaPad Slim 3', 'HP 15 Ryzen Edition'];
-    }
-    if (query.contains('headphone') || query.contains('earbud')) {
-      return const ['JBL Tune Beam', 'Sony WH-CH720N'];
-    }
-    return const ['Budget-first alternative', 'Premium long-term alternative'];
-  }
-
-  String _productPriceHint(DecisionRequest request) {
-    final query = request.query.toLowerCase();
-    return query.contains('phone') || query.contains('smartphone')
-        ? 'Estimated price: about \$180-\$220 for budget picks, or around \$450-\$520 for premium value picks'
-        : query.contains('laptop')
-        ? 'Estimated price: about \$450-\$700 depending on RAM and storage'
-        : query.contains('headphone') || query.contains('earbud')
-        ? 'Estimated price: about \$70-\$150 depending on model and discounts'
-        : 'Estimated price: check current offers in your budget range for the best deal';
-  }
-
-  String _productStoreHint(DecisionRequest request) {
-    final location = (request.location ?? '').toLowerCase();
-    return location.contains('lagos') ||
-            location.contains('nigeria') ||
-            location.contains('abuja')
-        ? 'Where to buy: Jumia, Konga, Slot, or trusted local phone/computer stores'
-        : location.contains('uk') ||
-              location.contains('london') ||
-              location.contains('manchester')
-        ? 'Where to buy: Amazon UK, Argos, Currys, or the brand store'
-        : 'Where to buy: Amazon, Best Buy, Walmart Marketplace, or the brand store';
-  }
-
-  String _productReasoning(DecisionRequest request, String best) {
-    final location = (request.location ?? '').trim();
-    final compareText = request.compareOptions.length >= 2
-        ? ' It edges out the other compare options on value, availability, and long-term ownership cost.'
-        : '';
-    final market = location.isEmpty ? 'your market' : location;
-
-    return 'Picked "$best" because it offers a strong balance of price, reliability, and everyday performance in $market.$compareText '
-        'I also prioritized products that are usually easy to find from reputable suppliers.';
-  }
-
-  List<String> _productPros(DecisionRequest request, String best) {
-    final location = (request.location ?? '').toLowerCase();
-    final query = request.query.toLowerCase();
-    final storeHint =
-        location.contains('lagos') ||
-            location.contains('nigeria') ||
-            location.contains('abuja')
-        ? 'Where to buy: Jumia, Konga, Slot, or trusted local phone/computer stores'
-        : location.contains('uk') ||
-              location.contains('london') ||
-              location.contains('manchester')
-        ? 'Where to buy: Amazon UK, Argos, Currys, or the brand store'
-        : 'Where to buy: Amazon, Best Buy, Walmart Marketplace, or the brand store';
-
-    final priceHint = query.contains('phone') || query.contains('smartphone')
-        ? 'Estimated price: about \$180-\$220 for budget picks, or around \$450-\$520 for premium value picks'
-        : query.contains('laptop')
-        ? 'Estimated price: about \$450-\$700 depending on RAM and storage'
-        : query.contains('headphone') || query.contains('earbud')
-        ? 'Estimated price: about \$70-\$150 depending on model and discounts'
-        : 'Estimated price: check current offers in your budget range for the best deal';
-
-    return [
-      priceHint,
-      storeHint,
-      'Best for: buyers who want dependable value without overspending on extras',
-    ];
-  }
-
-  List<String> _productCons(DecisionRequest request) {
-    return const [
-      'Prices can shift quickly across stores and regions',
-      'Local warranty and return policies may differ by supplier',
-    ];
   }
 }

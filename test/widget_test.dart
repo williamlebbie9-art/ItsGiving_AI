@@ -14,8 +14,7 @@ void main() {
     await tester.pumpWidget(const GivingAiApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('its giving.AI'), findsOneWidget);
-    expect(find.text('AI Glow Scan'), findsOneWidget);
+    expect(find.text('Your Glow Journey'), findsOneWidget);
     expect(find.text('Glow'), findsOneWidget);
     expect(find.text('Scan'), findsOneWidget);
     expect(find.text('Plan'), findsOneWidget);

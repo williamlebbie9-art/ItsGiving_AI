@@ -1,4 +1,4 @@
-package com.william.decideai
+package com.william.itsgivingai
 
 import io.flutter.embedding.android.FlutterActivity
 

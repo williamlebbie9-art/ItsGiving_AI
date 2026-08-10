@@ -15,7 +15,9 @@ class CoachMessage {
 }
 
 class AiCoachScreen extends StatefulWidget {
-  const AiCoachScreen({super.key});
+  const AiCoachScreen({this.initialQuestion, super.key});
+
+  final String? initialQuestion;
 
   @override
   State<AiCoachScreen> createState() => _AiCoachScreenState();
@@ -25,13 +27,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _engine = DecisionEngine();
-  final List<CoachMessage> _messages = [
-    CoachMessage(
-      text:
-          'Hey bestie ✨ I\'m your AI glow-up coach. Ask me about skincare, hair, outfits, habits, workouts, sleep, or confidence — I\'ll personalize it to your goals.',
-      isUser: false,
-    ),
-  ];
+  late final List<CoachMessage> _messages;
   bool _isTyping = false;
 
   GlowUserProfile? _profile;
@@ -39,7 +35,20 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
   @override
   void initState() {
     super.initState();
+    _messages = [
+      CoachMessage(
+        text:
+            'Hey bestie ✨ I\'m your AI glow-up coach. Ask me about skincare, hair, outfits, habits, workouts, sleep, or confidence — I\'ll personalize it to your goals.',
+        isUser: false,
+      ),
+    ];
     _loadProfile();
+    if (widget.initialQuestion != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _controller.text = widget.initialQuestion!;
+        _send();
+      });
+    }
   }
 
   @override
@@ -54,14 +63,6 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
     final raw = prefs.getString('glowup_profile');
     if (raw != null && raw.isNotEmpty) {
       try {
-        // Parse the simple Map<String, dynamic> stored by onboarding.
-        final cleaned = raw
-            .replaceAll('{', '{"')
-            .replaceAll('}', '"}')
-            .replaceAll(', ', '","')
-            .replaceAll(': ', '":"')
-            .replaceAll('}', '"}');
-        // This is a simple parser for the toString output.
         final map = <String, String>{};
         final entries = raw.replaceAll('{', '').replaceAll('}', '').split(', ');
         for (final entry in entries) {
@@ -105,8 +106,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
               '$profileContext '
               'Answer this question from the user in a supportive tone: "$text" '
               'Keep it practical, kind, and focused on achievable glow-up improvements. '
+              'Never mention prices, products to buy, or Product A vs Product B comparisons. '
               '2-4 short paragraphs max.',
-          manualCategory: DecisionCategory.fashion,
+          manualCategory: DecisionCategory.glowup,
         ),
       );
 

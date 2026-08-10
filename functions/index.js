@@ -30,7 +30,7 @@ exports.generateDecision = onRequest(
       return;
     }
 
-    const normalizedCategory = typeof category === "string" ? category : "products";
+    const normalizedCategory = typeof category === "string" ? category : "glowup";
     const provider = (process.env.AI_PROVIDER || "openai").toLowerCase();
 
     try {
@@ -49,8 +49,6 @@ exports.generateDecision = onRequest(
     }
   },
 );
-
-// (RevenueCat webhook removed)
 
 async function callOpenAi({ category, prompt, images }) {
   const apiKey = openAiApiKey.value() || process.env.OPENAI_API_KEY || "";
@@ -82,7 +80,25 @@ async function callOpenAi({ category, prompt, images }) {
       messages: [
         {
           role: "system",
-          content: "Return strict JSON only with exact keys: best_choice, alternatives, reasoning, pros, cons, confidence_score, and category. best_choice must be a short plain string, not an object. alternatives, pros, and cons must each be arrays of short strings.",
+          content: `You are its giving.AI — a warm, encouraging beauty and wellness coach.
+Your goal is to help the user enhance their natural glow, NOT judge or rank them.
+Analyze appearance-related characteristics in a supportive, non-medical way:
+- Skin appearance and skincare opportunities
+- Face shape and styling compatibility
+- Hairstyle compatibility
+- Brow styling
+- Makeup/styling opportunities
+- Overall grooming
+- Wellness, sleep, and lifestyle habits that affect glow
+
+Always use encouraging language like "Here's what you can enhance" instead of "Here's what's wrong."
+Never make medical diagnoses or claim to objectively determine beauty.
+Never mention prices, products to buy, or Product A vs Product B comparisons.
+Focus on achievable improvements: skincare habits, grooming, hairstyle inspiration, fitness/wellness, sleep, posture, styling, and lifestyle.
+
+Return strict JSON only with exact keys: best_choice, alternatives, reasoning, pros, cons, confidence_score, and category.
+best_choice must be a short plain string, not an object.
+alternatives, pros, and cons must each be arrays of short strings.`,
         },
         { role: "user", content: userContent },
       ],

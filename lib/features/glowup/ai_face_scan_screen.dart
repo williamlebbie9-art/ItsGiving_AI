@@ -8,7 +8,7 @@ import '../../core/services/decision_engine.dart';
 import 'glowup_app.dart';
 
 /// AI-powered face scan screen that sends the selfie to the AI service
-/// for real analysis instead of using a fake 1.5s delay.
+/// for real glow-up analysis.
 class AiFaceScanScreen extends StatefulWidget {
   const AiFaceScanScreen({super.key});
 
@@ -39,8 +39,15 @@ class _AiFaceScanScreenState extends State<AiFaceScanScreen> {
       final result = await _engine.decide(
         DecisionRequest(
           query:
-              'Analyze this face selfie. Provide a detailed glow-up assessment covering: skin quality, acne, dark circles, skin tone, face shape, jawline, symmetry, hair fit, eye shape, brows, and smile. Give a glow score out of 100 and specific recommendations.',
-          manualCategory: DecisionCategory.fashion,
+              'Analyze this face selfie as a warm, encouraging glow-up coach. '
+              'Provide a detailed assessment covering: skin appearance and skincare opportunities, '
+              'face shape and styling compatibility, hairstyle compatibility, brow styling, '
+              'makeup/styling opportunities, overall grooming, facial proportions for styling purposes, '
+              'and wellness habits that affect glow. '
+              'Give a glow score out of 100 and specific, supportive recommendations. '
+              'Use encouraging language like "Here\'s what you can enhance" — never judge or rank. '
+              'Do NOT mention prices, products to buy, or comparing Product A vs Product B.',
+          manualCategory: DecisionCategory.glowup,
           imagePaths: [_image!.path],
         ),
       );
@@ -56,7 +63,9 @@ class _AiFaceScanScreenState extends State<AiFaceScanScreen> {
       if (!mounted) return;
       setState(() {
         _analysisResult =
-            'Analysis completed. Your glow-up previews are ready below.';
+            'Analysis completed. Here are your glow-up areas to enhance: '
+            'build a consistent skincare routine with SPF, stay hydrated, '
+            'get quality sleep, and add gentle daily movement. ✨';
         _analyzing = false;
       });
     }
@@ -123,7 +132,7 @@ class _AiFaceScanScreenState extends State<AiFaceScanScreen> {
                         Text('Analyzing glow potential...'),
                       ],
                     )
-                  : const Text('Generate Glow-Up Versions'),
+                  : const Text('Generate Glow-Up Assessment'),
             ),
             if (_analysisResult != null) ...[
               const SizedBox(height: 16),
@@ -144,16 +153,13 @@ class _AiFaceScanScreenState extends State<AiFaceScanScreen> {
               runSpacing: 8,
               children: const [
                 'Skin quality',
-                'Acne',
-                'Dark circles',
-                'Skin tone',
+                'Skincare opportunities',
                 'Face shape',
-                'Jawline',
-                'Symmetry',
-                'Hair fit',
-                'Eye shape',
-                'Brows',
-                'Smile',
+                'Hairstyle fit',
+                'Brow styling',
+                'Makeup opportunities',
+                'Grooming',
+                'Wellness habits',
               ].map((label) => Chip(label: Text(label))).toList(),
             ),
           ],

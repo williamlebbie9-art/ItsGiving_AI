@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.william.decideai"
+    namespace = "com.william.itsgivingai"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         // Decide AI Android application ID.
-        applicationId = "com.william.decideai"
+        applicationId = "com.william.itsgivingai"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

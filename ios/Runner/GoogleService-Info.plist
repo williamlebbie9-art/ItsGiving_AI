@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>259251351524-esvnsk571b0aiuurhp95qrpn0e1f99rd.apps.googleusercontent.com</string>
+	<string>259251351524-ckpftjfsar93qbrmkrovv32alvqcfvph.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.259251351524-esvnsk571b0aiuurhp95qrpn0e1f99rd</string>
+	<string>com.googleusercontent.apps.259251351524-ckpftjfsar93qbrmkrovv32alvqcfvph</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>259251351524-ra72asv5cre2j7a0i38tgi3upm5r61kp.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>Com.william.decide.ai</string>
+	<string>com.googleusercontent.apps.259251351524-ckpftjfsar93qbrmkrovv32alvqcfvph</string>
 	<key>PROJECT_ID</key>
 	<string>decide-ai-89445</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:259251351524:ios:03c99a44aee7db809aa1f1</string>
+	<string>1:259251351524:ios:99cd20d0dcedacf39aa1f1</string>
 </dict>
 </plist>

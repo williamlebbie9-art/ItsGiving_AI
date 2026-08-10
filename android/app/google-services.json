@@ -7,20 +7,12 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:259251351524:android:a9e09f4f0c1e31229aa1f1",
+        "mobilesdk_app_id": "1:259251351524:android:f530d8101c246e969aa1f1",
         "android_client_info": {
-          "package_name": "com.william.decideai"
+          "package_name": "com.william.itsgivingai"
         }
       },
       "oauth_client": [
-        {
-          "client_id": "259251351524-ra72asv5cre2j7a0i38tgi3upm5r61kp.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.william.decideai",
-            "certificate_hash": "74ec539289da87386fc133f3669c1aa5aeba22c8"
-          }
-        },
         {
           "client_id": "259251351524-276p6r7rn2o82udf4a9n9gbo8if37skr.apps.googleusercontent.com",
           "client_type": 3
@@ -39,10 +31,10 @@
               "client_type": 3
             },
             {
-              "client_id": "259251351524-esvnsk571b0aiuurhp95qrpn0e1f99rd.apps.googleusercontent.com",
+              "client_id": "259251351524-ckpftjfsar93qbrmkrovv32alvqcfvph.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "Com.william.decide.ai"
+                "bundle_id": "com.william.itsgivingai"
               }
             }
           ]

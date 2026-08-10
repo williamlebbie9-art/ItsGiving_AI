@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'glow_app_shell.dart';
@@ -135,7 +136,7 @@ class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
       skinType: _answers['glowup_skin_type'],
       lifestyle: _answers['glowup_lifestyle'],
     );
-    await prefs.setString('glowup_profile', profile.toJson().toString());
+    await prefs.setString('glowup_profile', jsonEncode(profile.toJson()));
 
     if (!mounted) return;
     Navigator.of(
@@ -145,8 +146,6 @@ class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final question = _questions[_page];
-
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(

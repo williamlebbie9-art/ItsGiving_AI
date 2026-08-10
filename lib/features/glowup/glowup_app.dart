@@ -7,7 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'ai_coach_screen.dart' as ai_coach;
+
 final selectedLookProvider = StateProvider<GlowLook?>((ref) => null);
+final selectedGoalProvider = StateProvider<int?>((ref) => null);
 final completedTasksProvider = StateProvider<Set<String>>((ref) => <String>{});
 final chatMessagesProvider = StateProvider<List<CoachMessage>>(
   (ref) => const [
@@ -620,7 +623,7 @@ class ProgressScreen extends StatelessWidget {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: 6,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
                 itemBuilder: (_, index) => Container(
                   width: 92,
                   decoration: BoxDecoration(
@@ -1061,7 +1064,7 @@ class GlowScanHeroCard extends StatelessWidget {
                   tween: Tween(begin: 0.78, end: 0.9),
                   duration: const Duration(milliseconds: 1200),
                   curve: Curves.easeInOut,
-                  builder: (_, value, __) => SizedBox(
+                  builder: (_, value, _) => SizedBox(
                     width: 168,
                     height: 168,
                     child: CircularProgressIndicator(
@@ -1231,10 +1234,10 @@ class KeyMetricsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = const [
-      _MetricData('Skin Health', '8.5/10', Icons.spa_rounded, 0.82),
-      _MetricData('Symmetry', '8.0/10', Icons.face_rounded, 0.78),
-      _MetricData('Features', '8.7/10', Icons.face_retouching_natural, 0.84),
-      _MetricData('Glow Potential', '9.2/10', Icons.auto_awesome, 0.9),
+      MetricData('Skin Health', '8.5/10', Icons.spa_rounded, 0.82),
+      MetricData('Symmetry', '8.0/10', Icons.face_rounded, 0.78),
+      MetricData('Features', '8.7/10', Icons.face_retouching_natural, 0.84),
+      MetricData('Glow Potential', '9.2/10', Icons.auto_awesome, 0.9),
     ];
 
     return GridView.count(
@@ -1252,7 +1255,7 @@ class KeyMetricsGrid extends StatelessWidget {
 class MetricCard extends StatelessWidget {
   const MetricCard({required this.metric, super.key});
 
-  final _MetricData metric;
+  final MetricData metric;
 
   @override
   Widget build(BuildContext context) {
@@ -1295,16 +1298,17 @@ class MetricCard extends StatelessWidget {
   }
 }
 
-class PersonalPlanPreview extends StatelessWidget {
+class PersonalPlanPreview extends ConsumerWidget {
   const PersonalPlanPreview({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedGoal = ref.watch(selectedGoalProvider);
     final plans = const [
-      _PlanTileData('Skin Perfection', 'Custom skincare routines', '8-12 Weeks', Icons.spa_rounded),
-      _PlanTileData('Hair Goals', 'Hair care & styling', '4-8 Weeks', Icons.face_3_rounded),
-      _PlanTileData('Style & Aesthetic', 'Outfits that match your vibe', '8-12 Weeks', Icons.checkroom_rounded),
-      _PlanTileData('Confidence Boost', 'Mindset & self love guides', '8 Weeks', Icons.favorite_rounded),
+      PlanTileData('Skin Perfection', 'Custom skincare routines', '8-12 Weeks', Icons.spa_rounded),
+      PlanTileData('Hair Goals', 'Hair care & styling', '4-8 Weeks', Icons.face_3_rounded),
+      PlanTileData('Style & Aesthetic', 'Outfits that match your vibe', '8-12 Weeks', Icons.checkroom_rounded),
+      PlanTileData('Confidence Boost', 'Mindset & self love guides', '8 Weeks', Icons.favorite_rounded),
     ];
 
     return GlassCard(
@@ -1320,32 +1324,35 @@ class PersonalPlanPreview extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          const SectionTitle('Glow Up Plan ✨'),
+          const SectionTitle('Glow Up Goals'),
           const SizedBox(height: 8),
-          const Text('Personalized AI strategies to become your highest self.'),
+          const Text('Choose one goal to start your personalized AI plan.'),
           const SizedBox(height: 14),
-          SizedBox(
-            height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: const [
-                _PlanChip('All', selected: true),
-                _PlanChip('Beauty'),
-                _PlanChip('Style'),
-                _PlanChip('Mindset'),
-                _PlanChip('Health'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          GridView.count(
-            crossAxisCount: MediaQuery.sizeOf(context).width > 650 ? 4 : 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.94,
-            children: plans.map((plan) => PlanPreviewTile(plan: plan)).toList(),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth;
+              final columns = maxWidth > 900
+                  ? 4
+                  : maxWidth > 620
+                      ? 2
+                      : 1;
+              final itemWidth = (maxWidth - (columns - 1) * 12) / columns;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: List.generate(plans.length, (index) {
+                  final plan = plans[index];
+                  return SizedBox(
+                    width: itemWidth,
+                    child: PlanPreviewTile(
+                      plan: plan,
+                      selected: selectedGoal == index,
+                      onTap: () => _openCoach(context, ref, plan.title, index),
+                    ),
+                  );
+                }),
+              );
+            },
           ),
         ],
       ),
@@ -1353,70 +1360,95 @@ class PersonalPlanPreview extends StatelessWidget {
   }
 }
 
-class _PlanChip extends StatelessWidget {
-  const _PlanChip(this.label, {this.selected = false});
+void _openCoach(BuildContext context, WidgetRef ref, String title, int index) {
+  const prompts = {
+    'Skin Perfection':
+        'I want personalized skincare advice for clearer, glowing skin.',
+    'Hair Goals':
+        'Help me improve my hair care routine and styling for my hair goals.',
+    'Style & Aesthetic':
+        'Give me style and aesthetic guidance to match my vibe and wardrobe.',
+    'Confidence Boost':
+        'How can I build confidence with daily habits, self-love, and mindset?',
+  };
 
-  final String label;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: BoxDecoration(
-        gradient: selected ? GlowColors.primaryGradient : null,
-        color: selected ? null : Colors.white.withValues(alpha: 0.58),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: TextStyle(
-          color: selected ? Colors.white : GlowColors.muted,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
+  ref.read(selectedGoalProvider.notifier).state = index;
+  final question = prompts[title] ??
+      'Help me get started with a glow-up plan for $title.';
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => ai_coach.AiCoachScreen(initialQuestion: question),
+    ),
+  );
 }
 
 class PlanPreviewTile extends StatelessWidget {
-  const PlanPreviewTile({required this.plan, super.key});
+  const PlanPreviewTile({required this.plan, required this.selected, this.onTap, super.key});
 
-  final _PlanTileData plan;
+  final PlanTileData plan;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.62),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(child: Icon(plan.icon, color: GlowColors.hotPink, size: 36)),
-          const Spacer(),
-          Text(
-            plan.title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 6),
-          Text(plan.subtitle),
-          const Spacer(),
-          Text(
-            '• ${plan.duration}',
-            style: const TextStyle(
-              color: GlowColors.muted,
-              fontWeight: FontWeight.w800,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: selected
+                ? const Color(0xFFFFF0F8)
+                : Colors.white.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFFFF8FC7)
+                  : Colors.white.withValues(alpha: 0.7),
+              width: selected ? 2 : 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Icon(plan.icon, color: GlowColors.hotPink, size: 36),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                plan.title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                plan.subtitle,
+                style: const TextStyle(height: 1.35),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              Text(
+                '• ${plan.duration}',
+                style: const TextStyle(
+                  color: GlowColors.muted,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1628,7 +1660,7 @@ class SelfieTimelineStrip extends StatelessWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: 6,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (_, index) => Container(
               width: 92,
               decoration: BoxDecoration(
@@ -1652,8 +1684,8 @@ class SelfieTimelineStrip extends StatelessWidget {
   }
 }
 
-class _MetricData {
-  const _MetricData(this.title, this.value, this.icon, this.progress);
+class MetricData {
+  const MetricData(this.title, this.value, this.icon, this.progress);
 
   final String title;
   final String value;
@@ -1661,8 +1693,8 @@ class _MetricData {
   final double progress;
 }
 
-class _PlanTileData {
-  const _PlanTileData(this.title, this.subtitle, this.duration, this.icon);
+class PlanTileData {
+  const PlanTileData(this.title, this.subtitle, this.duration, this.icon);
 
   final String title;
   final String subtitle;

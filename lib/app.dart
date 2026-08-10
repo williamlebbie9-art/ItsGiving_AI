@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'features/glowup/enhanced_onboarding_screen.dart';
 import 'features/glowup/glow_app_shell.dart';
-import 'features/glowup/glowup_app.dart';
 
 class GivingAiApp extends StatelessWidget {
   const GivingAiApp({super.key});
@@ -137,7 +137,7 @@ class _AppEntryState extends State<_AppEntry> {
     }
 
     if (_showOnboarding) {
-      return const GlowOnboardingScreen();
+      return const EnhancedOnboardingScreen();
     }
 
     return const GlowAppShell();
