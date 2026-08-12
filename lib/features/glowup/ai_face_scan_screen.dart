@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/models/decision_models.dart';
 import '../../core/services/decision_engine.dart';
+import 'glow_up_generator_screen.dart';
 import 'glowup_app.dart';
 
 /// AI-powered face scan screen that sends the selfie to the AI service
@@ -61,14 +62,27 @@ class _AiFaceScanScreenState extends State<AiFaceScanScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      // Surface the real error. Never mask AI failures with a fake analysis.
       setState(() {
-        _analysisResult =
-            'Analysis completed. Here are your glow-up areas to enhance: '
-            'build a consistent skincare routine with SPF, stay hydrated, '
-            'get quality sleep, and add gentle daily movement. ✨';
+        _analysisResult = 'AI REQUEST FAILED\n\n$e';
         _analyzing = false;
       });
     }
+  }
+
+  Future<void> _openGenerator() async {
+    final image = _image;
+    if (image == null) return;
+    final summary = _analysisResult;
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GlowUpGeneratorScreen(
+          imagePath: image.path,
+          faceScanSummary: summary,
+        ),
+      ),
+    );
   }
 
   @override
@@ -145,6 +159,12 @@ class _AiFaceScanScreenState extends State<AiFaceScanScreen> {
                     Text(_analysisResult!),
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _openGenerator,
+                icon: const Icon(Icons.auto_awesome_rounded),
+                label: const Text('Explore Your Glow-Up'),
               ),
             ],
             const SizedBox(height: 18),

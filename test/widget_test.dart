@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,7 +12,7 @@ void main() {
       'glowup_onboarding_completed': true,
     });
 
-    await tester.pumpWidget(const GivingAiApp());
+    await tester.pumpWidget(const ProviderScope(child: GivingAiApp()));
     await tester.pumpAndSettle();
 
     expect(find.text('Your Glow Journey'), findsOneWidget);

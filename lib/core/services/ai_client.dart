@@ -16,35 +16,42 @@ class AiClient {
     required String prompt,
     required DecisionRequest request,
   }) async {
-    final provider = (dotenv.env['AI_PROVIDER'] ?? 'mock').toLowerCase();
+    final provider = (dotenv.env['AI_PROVIDER'] ?? '').toLowerCase();
 
-    try {
-      if (provider == 'firebase') {
-        return await _callFirebaseFunction(
-          category: category,
-          prompt: prompt,
-          request: request,
-        );
-      }
-      if (provider == 'openai') {
-        return await _callOpenAi(
-          category: category,
-          prompt: prompt,
-          request: request,
-        );
-      }
-      if (provider == 'gemini') {
-        return await _callGemini(
-          category: category,
-          prompt: prompt,
-          request: request,
-        );
-      }
-    } catch (_) {
-      // Fallback below.
+    // AI request started
+    // ignore: avoid_print
+    print(
+      '[AI] AI request started. provider=$provider category=${category.value}',
+    );
+
+    if (provider == 'firebase') {
+      return await _callFirebaseFunction(
+        category: category,
+        prompt: prompt,
+        request: request,
+      );
+    }
+    if (provider == 'openai') {
+      return await _callOpenAi(
+        category: category,
+        prompt: prompt,
+        request: request,
+      );
+    }
+    if (provider == 'gemini') {
+      return await _callGemini(
+        category: category,
+        prompt: prompt,
+        request: request,
+      );
     }
 
-    return _mock(category: category, request: request);
+    // No silent mock fallback. Surface the misconfiguration so the real
+    // AI integration is never masked by a fake answer.
+    throw StateError(
+      'AI_PROVIDER is not configured. Set AI_PROVIDER=firebase (or openai/gemini) '
+      'in .env. Current value: "${provider.isEmpty ? '(empty)' : provider}".',
+    );
   }
 
   Future<DecisionResult> _callOpenAi({
@@ -181,6 +188,12 @@ class AiClient {
 
     final images = await _buildImagePayloads(imagePaths: request.imagePaths);
 
+    // Function received request
+    // ignore: avoid_print
+    print(
+      '[AI] Function received request. url=$functionUrl images=${images.length}',
+    );
+
     final response = await http
         .post(
           Uri.parse(functionUrl),
@@ -201,14 +214,83 @@ class AiClient {
         );
 
     if (response.statusCode < 200 || response.statusCode > 299) {
+      // ignore: avoid_print
+      print('[AI] OpenAI/Firebase request failed: ${response.statusCode}');
       throw Exception(
         'Firebase function request failed: ${response.statusCode}',
       );
     }
 
+    // ignore: avoid_print
+    print('[AI] OpenAI response received. status=${response.statusCode}');
+
     final parsed = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
     parsed['category'] = parsed['category'] ?? category.value;
     return DecisionResult.fromJson(parsed);
+  }
+
+  /// Calls the deployed `generateGlowUpImage` Firebase function which uses
+  /// OpenAI's gpt-image-1 image-editing model with the user's photo as the
+  /// identity reference. Returns the generated image as base64 PNG bytes.
+  Future<Uint8List> generateGlowUpImage({
+    required String imagePath,
+    required String styleId,
+    String? faceScanSummary,
+  }) async {
+    final defaultLocalUrl = Platform.isAndroid
+        ? 'http://10.0.2.2:5001/decide-ai-89445/us-central1/generateGlowUpImage'
+        : 'http://127.0.0.1:5001/decide-ai-89445/us-central1/generateGlowUpImage';
+
+    final functionUrl =
+        dotenv.env['FIREBASE_IMAGE_FUNCTIONS_URL']?.trim().isNotEmpty == true
+        ? dotenv.env['FIREBASE_IMAGE_FUNCTIONS_URL']!.trim()
+        : defaultLocalUrl;
+
+    final bytes = await _readImage(imagePath);
+    if (bytes == null) {
+      throw Exception('Could not read image at $imagePath');
+    }
+
+    // ignore: avoid_print
+    print('[AI] Image generation request started. style=$styleId');
+
+    final response = await http
+        .post(
+          Uri.parse(functionUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'image': {
+              'mimeType': _mimeFromPath(imagePath),
+              'data': base64Encode(bytes),
+            },
+            'styleId': styleId,
+            'faceScanSummary': faceScanSummary,
+          }),
+        )
+        .timeout(
+          const Duration(seconds: 120),
+          onTimeout: () => throw TimeoutException(
+            'Image generation timed out',
+            const Duration(seconds: 120),
+          ),
+        );
+
+    if (response.statusCode < 200 || response.statusCode > 299) {
+      // ignore: avoid_print
+      print('[AI] Image generation failed: ${response.statusCode}');
+      throw Exception('Image generation failed: ${response.statusCode}');
+    }
+
+    final parsed = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final b64 = parsed['image'] as String?;
+    if (b64 == null || b64.isEmpty) {
+      throw Exception('Image generation response missing image data.');
+    }
+
+    // ignore: avoid_print
+    print('[AI] Image generation response received. bytes=${b64.length}');
+
+    return base64Decode(b64);
   }
 
   Future<List<Map<String, String>>> _buildImagePayloads({
@@ -313,50 +395,5 @@ class AiClient {
       lines.removeLast();
     }
     return lines.join('\n').trim();
-  }
-
-  DecisionResult _mock({
-    required DecisionCategory category,
-    required DecisionRequest request,
-  }) {
-    if (category == DecisionCategory.glowup) {
-      return DecisionResult(
-        bestChoice: 'Consistent glow-up routine',
-        alternatives: const [
-          'Morning skincare + SPF',
-          'Evening skincare routine',
-          'Weekly self-care ritual',
-        ],
-        reasoning:
-            'Your glow-up journey is about consistent, achievable habits. '
-            'Focus on building a daily skincare routine with SPF, staying hydrated, '
-            'getting quality sleep, and adding gentle movement. '
-            'Small daily actions compound into visible results over time.',
-        pros: const [
-          'Build a consistent AM and PM skincare routine',
-          'Drink 2L+ of water daily',
-          'Aim for 7-8 hours of quality sleep',
-          'Move your body 30 minutes daily',
-          'Practice daily gratitude or journaling',
-        ],
-        cons: const [
-          'Consistency takes time to build',
-          'Results appear gradually over weeks',
-        ],
-        confidenceScore: '0.85',
-        category: category,
-      );
-    }
-
-    return DecisionResult(
-      bestChoice: 'Balanced style recommendation',
-      alternatives: const ['Classic look', 'Trend-forward look'],
-      reasoning:
-          'Based on your context, this is the strongest practical fit for your style goals.',
-      pros: const ['Context-aware', 'Low-risk'],
-      cons: const ['Generalized without deeper data'],
-      confidenceScore: '0.78',
-      category: category,
-    );
   }
 }

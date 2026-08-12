@@ -33,6 +33,13 @@ exports.generateDecision = onRequest(
     const normalizedCategory = typeof category === "string" ? category : "glowup";
     const provider = (process.env.AI_PROVIDER || "openai").toLowerCase();
 
+    logger.info("Function received request", {
+      category: normalizedCategory,
+      provider,
+      promptLength: prompt.length,
+      imageCount: images.length,
+    });
+
     try {
       const result = provider === "openai"
         ? await callOpenAi({ category: normalizedCategory, prompt, images })
@@ -49,6 +56,163 @@ exports.generateDecision = onRequest(
     }
   },
 );
+
+exports.generateGlowUpImage = onRequest(
+  {
+    cors: true,
+    invoker: "public",
+    secrets: [openAiApiKey],
+    region: process.env.AI_FUNCTION_REGION || "us-central1",
+    timeoutSeconds: 180,
+    memory: "1GiB",
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Use POST for generateGlowUpImage." });
+      return;
+    }
+
+    const { image, styleId, faceScanSummary } = req.body ?? {};
+    if (!image || typeof image !== "object" || !image.data) {
+      res.status(400).json({ error: "image with base64 data is required." });
+      return;
+    }
+
+    const style = glowUpStyles[styleId] || glowUpStyles["clean-girl"];
+    logger.info("generateGlowUpImage request", {
+      styleId: style.id,
+      prompt: style.generationPrompt,
+      imageBytes: Math.round((image.data.length * 3) / 4),
+    });
+
+    try {
+      const b64 = image.data.replace(/^data:image\/\w+;base64,/, "");
+      const apiKey = openAiApiKey.value() || process.env.OPENAI_API_KEY || "";
+      if (!apiKey) {
+        throw new Error("OPENAI_API_KEY is missing.");
+      }
+
+      const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
+      const prompt = buildGlowUpPrompt(style, faceScanSummary);
+
+      const response = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          prompt,
+          images: [
+            {
+              image_url: `data:${image.mimeType || "image/png"};base64,${b64}`,
+            },
+          ],
+          size: "1024x1024",
+          n: 1,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error("OpenAI image generation failed", {
+          status: response.status,
+          safeError: errorText.slice(0, 500),
+        });
+        throw new Error(`OpenAI image generation failed: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      const b64Json = data?.data?.[0]?.b64_json;
+      if (!b64Json) {
+        throw new Error("OpenAI image response missing b64_json.");
+      }
+
+      logger.info("OpenAI image response received", { status: response.status });
+      res.status(200).json({
+        image: b64Json,
+        mimeType: "image/png",
+        styleId: style.id,
+        styleName: style.name,
+      });
+    } catch (error) {
+      logger.error("generateGlowUpImage failed", error);
+      res.status(500).json({
+        error: "Image generation failed.",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+);
+
+const glowUpStyles = {
+  "clean-girl": {
+    id: "clean-girl",
+    name: "Clean Girl",
+    emoji: "✨",
+    color: "#FF8FC7",
+    generationPrompt:
+      "Clean Girl aesthetic: natural, polished, fresh appearance with dewy skin, slicked-back low bun or glass hair, minimal makeup, neutral tones, gold minimal jewelry, white/beige/cream clothing.",
+  },
+  "soft-girl": {
+    id: "soft-girl",
+    name: "Soft Girl",
+    emoji: "🎀",
+    color: "#FFB6D9",
+    generationPrompt:
+      "Soft Girl aesthetic: soft feminine styling with pastel colors, gentle rosy makeup, soft waves or butterfly clips, lace and ribbon accents, blush cardigans and flowy skirts, dreamy romantic presentation.",
+  },
+  "old-money": {
+    id: "old-money",
+    name: "Old Money",
+    emoji: "🖤",
+    color: "#2E2140",
+    generationPrompt:
+      "Old Money aesthetic: elegant, sophisticated styling with refined sleek blowout or low chignon, minimal classic makeup, cashmere sweaters and tailored trousers, silk scarves, gold watch, timeless quiet luxury.",
+  },
+  glam: {
+    id: "glam",
+    name: "Glam",
+    emoji: "💎",
+    color: "#FF5FA2",
+    generationPrompt:
+      "Glam aesthetic: more defined makeup with polished eyes, contour, and glossy lips, elevated waves or sleek polished hair, statement accessories, elegant evening styling, confident high-gloss presentation.",
+  },
+  sporty: {
+    id: "sporty",
+    name: "Sporty",
+    emoji: "🏃",
+    color: "#FF8A65",
+    generationPrompt:
+      "Sporty aesthetic: fresh, athletic, natural styling with clean minimal makeup, high ponytail or braids, athleisure sets, sporty watch, lively energetic healthy presentation.",
+  },
+  minimalist: {
+    id: "minimalist",
+    name: "Minimalist",
+    emoji: "🤍",
+    color: "#B8A7FF",
+    generationPrompt:
+      "Minimalist aesthetic: simple, clean, understated styling with effortless natural hair, barely-there makeup, structured neutral clothing, subtle accessories, quiet refined simplicity.",
+  },
+};
+
+function buildGlowUpPrompt(style, faceScanSummary) {
+  const summary = faceScanSummary && typeof faceScanSummary === "string"
+    ? faceScanSummary.trim()
+    : "";
+  const summaryPart = summary
+    ? ` Use these analysis details as styling guidance: ${summary}`
+    : "";
+  return (
+    `Use the uploaded person as the identity reference. ` +
+    `Create a realistic style transformation inspired by the ${style.name} aesthetic. ` +
+    `Preserve the person's recognizable facial identity, facial proportions, skin tone, and natural features. ` +
+    `Change only the requested styling elements: ${style.generationPrompt}` +
+    summaryPart +
+    ` Produce a realistic, flattering, photorealistic result suitable as personal style inspiration.`
+  );
+}
 
 async function callOpenAi({ category, prompt, images }) {
   const apiKey = openAiApiKey.value() || process.env.OPENAI_API_KEY || "";
@@ -68,6 +232,11 @@ async function callOpenAi({ category, prompt, images }) {
         })),
       ]
     : prompt;
+
+  logger.info("OpenAI request started", {
+    model,
+    imageCount: images.length,
+  });
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -108,8 +277,15 @@ alternatives, pros, and cons must each be arrays of short strings.`,
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI request failed: ${response.status} ${await response.text()}`);
+    const errorText = await response.text();
+    logger.error("OpenAI request failed", {
+      status: response.status,
+      safeError: errorText.slice(0, 500),
+    });
+    throw new Error(`OpenAI request failed: ${response.status} ${errorText}`);
   }
+
+  logger.info("OpenAI response received", { status: response.status });
 
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content ?? "{}";

@@ -26,8 +26,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   Future<void> _upgrade() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() => _isPremium = true);
     await prefs.setBool('glowup_premium', true);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(

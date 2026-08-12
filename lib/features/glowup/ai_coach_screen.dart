@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/decision_models.dart';
 import '../../core/services/decision_engine.dart';
 import 'glow_models.dart';
+import 'plan_provider.dart';
 
 class CoachMessage {
   const CoachMessage({required this.text, required this.isUser});
@@ -14,16 +16,16 @@ class CoachMessage {
   final bool isUser;
 }
 
-class AiCoachScreen extends StatefulWidget {
+class AiCoachScreen extends ConsumerStatefulWidget {
   const AiCoachScreen({this.initialQuestion, super.key});
 
   final String? initialQuestion;
 
   @override
-  State<AiCoachScreen> createState() => _AiCoachScreenState();
+  ConsumerState<AiCoachScreen> createState() => _AiCoachScreenState();
 }
 
-class _AiCoachScreenState extends State<AiCoachScreen> {
+class _AiCoachScreenState extends ConsumerState<AiCoachScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _engine = DecisionEngine();
@@ -78,6 +80,53 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
     }
   }
 
+  /// Builds plan context so the AI Coach knows the user's current day/tasks.
+  String _buildPlanContext() {
+    final plan = ref.read(planProvider).plan;
+    if (plan == null) return '';
+
+    final week = plan.currentWeekData;
+    final day = plan.currentDayData;
+    if (week == null || day == null) return '';
+
+    final completedTasks = day.tasks.where((t) => t.isCompleted).toList();
+    final pendingTasks = day.tasks.where((t) => !t.isCompleted).toList();
+
+    final buffer = StringBuffer()
+      ..writeln('The user has an active 30-day glow-up plan.')
+      ..writeln(
+        'They are on Day ${plan.currentDay} of ${plan.totalDays}, '
+        'Week ${week.weekNumber} — ${week.title}.',
+      )
+      ..writeln('Week goal: ${week.goal}')
+      ..writeln(
+        'Today\'s tasks (${day.completedCount}/${day.tasks.length} done):',
+      );
+
+    for (final task in day.tasks) {
+      final status = task.isCompleted ? '✓' : '○';
+      buffer.writeln('  $status ${task.title} (${task.category})');
+    }
+
+    if (completedTasks.isNotEmpty) {
+      buffer.writeln(
+        'Completed: ${completedTasks.map((t) => t.title).join(', ')}',
+      );
+    }
+    if (pendingTasks.isNotEmpty) {
+      buffer.writeln(
+        'Still to do: ${pendingTasks.map((t) => t.title).join(', ')}',
+      );
+    }
+
+    buffer.writeln(
+      'IMPORTANT: When the user asks what to do today, reference their actual '
+      'plan tasks above. Do NOT invent tasks that are not in their saved plan.',
+    );
+
+    return buffer.toString();
+  }
+
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isTyping) return;
@@ -99,11 +148,14 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                 'Lifestyle=${_profile!.lifestyle ?? 'Not set'}. '
           : '';
 
+      final planContext = _buildPlanContext();
+
       final result = await _engine.decide(
         DecisionRequest(
           query:
               'You are a warm, encouraging beauty and wellness coach. '
               '$profileContext '
+              '$planContext '
               'Answer this question from the user in a supportive tone: "$text" '
               'Keep it practical, kind, and focused on achievable glow-up improvements. '
               'Never mention prices, products to buy, or Product A vs Product B comparisons. '
@@ -122,17 +174,13 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
         _isTyping = false;
       });
       _scrollToBottom();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
+      // Surface the real error. Never mask AI failures with a fake answer.
+      final safeError = error.toString();
       setState(() {
         _messages.add(
-          CoachMessage(
-            text:
-                'Here\'s a quick glow-up tip: Start with the gentlest high-impact step — SPF every morning, '
-                'hydration, protein, consistent sleep, and one confidence rep today. Want a more personalized routine? '
-                'Share a bit more about your goals and I\'ll tailor it! ✨',
-            isUser: false,
-          ),
+          CoachMessage(text: 'AI REQUEST FAILED\n\n$safeError', isUser: false),
         );
         _isTyping = false;
       });

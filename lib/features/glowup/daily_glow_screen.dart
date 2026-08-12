@@ -54,6 +54,7 @@ class _DailyGlowScreenState extends State<DailyGlowScreen> {
     ];
     final allDone = allTasks.every((t) => _completedTasks.contains(t.id));
     if (allDone && _day < 7) {
+      if (!mounted) return;
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(

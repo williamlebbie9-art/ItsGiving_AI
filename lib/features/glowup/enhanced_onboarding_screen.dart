@@ -1,15 +1,18 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'glow_app_shell.dart';
 import 'glow_models.dart';
+import 'plan_provider.dart';
 
-class EnhancedOnboardingScreen extends StatefulWidget {
+class EnhancedOnboardingScreen extends ConsumerStatefulWidget {
   const EnhancedOnboardingScreen({super.key});
 
   @override
-  State<EnhancedOnboardingScreen> createState() =>
+  ConsumerState<EnhancedOnboardingScreen> createState() =>
       _EnhancedOnboardingScreenState();
 }
 
@@ -27,10 +30,12 @@ class _OnboardingQuestion {
   final String storageKey;
 }
 
-class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
+class _EnhancedOnboardingScreenState
+    extends ConsumerState<EnhancedOnboardingScreen> {
   final _controller = PageController();
   int _page = 0;
   final _answers = <String, String>{};
+  bool _isFinishing = false;
 
   static const _questions = [
     _OnboardingQuestion(
@@ -124,6 +129,9 @@ class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
   }
 
   Future<void> _finish() async {
+    if (_isFinishing) return;
+    setState(() => _isFinishing = true);
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('glowup_onboarding_completed', true);
 
@@ -139,6 +147,11 @@ class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
     await prefs.setString('glowup_profile', jsonEncode(profile.toJson()));
 
     if (!mounted) return;
+
+    // Generate the personalized 30-day plan in the background.
+    // The Home screen will show a skeleton while this completes.
+    ref.read(planProvider.notifier).generatePlan(profile: profile);
+
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => const GlowAppShell()));
@@ -200,7 +213,7 @@ class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
                               ),
                             ),
                             TextButton(
-                              onPressed: _finish,
+                              onPressed: _isFinishing ? null : _finish,
                               child: const Text('Skip'),
                             ),
                           ],
@@ -274,7 +287,9 @@ class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _page == _questions.length - 1
+                      onPressed: _isFinishing
+                          ? null
+                          : _page == _questions.length - 1
                           ? _finish
                           : () {
                               _controller.nextPage(
@@ -282,11 +297,26 @@ class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
                                 curve: Curves.easeOutCubic,
                               );
                             },
-                      child: Text(
-                        _page == _questions.length - 1
-                            ? 'Start My Glow Journey ✨'
-                            : 'Continue',
-                      ),
+                      child: _isFinishing
+                          ? const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text('Creating your plan...'),
+                              ],
+                            )
+                          : Text(
+                              _page == _questions.length - 1
+                                  ? 'Start My Glow Journey ✨'
+                                  : 'Continue',
+                            ),
                     ),
                   ),
                 ],
