@@ -152,9 +152,16 @@ class _EnhancedOnboardingScreenState
     // The Home screen will show a skeleton while this completes.
     ref.read(planProvider.notifier).generatePlan(profile: profile);
 
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const GlowAppShell()));
+    // If onboarding was opened from within the app (e.g. "Create My Plan"
+    // after skipping), pop back to the existing shell. Otherwise this is
+    // the first-run flow, so replace this screen with the main shell.
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const GlowAppShell()),
+      );
+    }
   }
 
   @override

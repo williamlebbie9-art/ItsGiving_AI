@@ -342,7 +342,9 @@ class _NoPlanCard extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const GlowUpPlanScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const EnhancedOnboardingScreen(),
+                  ),
                 );
               },
               icon: const Icon(Icons.auto_awesome_rounded),
