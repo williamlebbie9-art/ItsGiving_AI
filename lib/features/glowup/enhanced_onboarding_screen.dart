@@ -34,7 +34,7 @@ class _EnhancedOnboardingScreenState
     extends ConsumerState<EnhancedOnboardingScreen> {
   final _controller = PageController();
   int _page = 0;
-  final _answers = <String, String>{};
+  final _answers = <String, Set<String>>{};
   bool _isFinishing = false;
 
   static const _questions = [
@@ -135,14 +135,20 @@ class _EnhancedOnboardingScreenState
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('glowup_onboarding_completed', true);
 
+    String? joined(String key) {
+      final values = _answers[key];
+      if (values == null || values.isEmpty) return null;
+      return values.join(', ');
+    }
+
     final profile = GlowUserProfile(
-      goal: _answers['glowup_goal'],
-      skincareRoutine: _answers['glowup_skincare'],
-      exerciseFrequency: _answers['glowup_exercise'],
-      sleepSchedule: _answers['glowup_sleep'],
-      aesthetic: _answers['glowup_vibe'],
-      skinType: _answers['glowup_skin_type'],
-      lifestyle: _answers['glowup_lifestyle'],
+      goal: joined('glowup_goal'),
+      skincareRoutine: joined('glowup_skincare'),
+      exerciseFrequency: joined('glowup_exercise'),
+      sleepSchedule: joined('glowup_sleep'),
+      aesthetic: joined('glowup_vibe'),
+      skinType: joined('glowup_skin_type'),
+      lifestyle: joined('glowup_lifestyle'),
     );
     await prefs.setString('glowup_profile', jsonEncode(profile.toJson()));
 
@@ -250,7 +256,8 @@ class _EnhancedOnboardingScreenState
                           child: ListView(
                             children: q.options.map((option) {
                               final isSelected =
-                                  _answers[q.storageKey] == option;
+                                  _answers[q.storageKey]?.contains(option) ??
+                                  false;
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 10),
                                 child: _buildOption(
@@ -341,7 +348,15 @@ class _EnhancedOnboardingScreenState
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: () {
-          setState(() => _answers[storageKey] = option);
+          setState(() {
+            final current = _answers[storageKey] ?? <String>{};
+            if (current.contains(option)) {
+              current.remove(option);
+            } else {
+              current.add(option);
+            }
+            _answers[storageKey] = current;
+          });
         },
         borderRadius: BorderRadius.circular(18),
         child: Container(
