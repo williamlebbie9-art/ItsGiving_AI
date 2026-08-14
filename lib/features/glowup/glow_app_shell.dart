@@ -222,28 +222,34 @@ class _TodayPlanCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Text(
-                'Today\'s Glow-Up',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF5FA2).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(99),
-                ),
+              Expanded(
                 child: Text(
-                  'Day ${plan.currentDay} — ${week.title}',
-                  style: const TextStyle(
-                    color: Color(0xFFFF5FA2),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
+                  'Today\'s Glow-Up',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF5FA2).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    'Day ${plan.currentDay} — ${week.title}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFFF5FA2),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ),
