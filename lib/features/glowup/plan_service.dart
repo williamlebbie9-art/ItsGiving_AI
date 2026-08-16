@@ -184,6 +184,14 @@ class PlanService {
         '- Each day has 4-6 realistic tasks across Morning, Lifestyle, Fitness, Appearance, Mindset.\n'
         '- Tasks must be personalized to the user\'s goal, skin type, exercise level, sleep, vibe, and lifestyle.\n'
         '- Tasks must be realistic and not overwhelming.\n'
+        '- Include natural remedy tasks where relevant — such as natural skincare ingredients '
+        '(aloe vera, green tea, honey, oatmeal, rose water, jojoba oil, coconut oil, shea butter), '
+        'herbal teas (chamomile, green tea, peppermint, ginger), dietary suggestions '
+        '(antioxidant-rich foods, omega-3s, vitamin C, hydration), lifestyle remedies '
+        '(sleep, stress reduction, facial massage, dry brushing), and natural hair care '
+        '(coconut oil masks, aloe vera gel, rosemary rinse).\n'
+        '- Always frame natural remedies as gentle, supportive suggestions — never as medical treatment '
+        'or a replacement for professional care.\n'
         '- Use unique task IDs like w1d1t1, w1d2t1, w2d1t1, etc.\n'
         '- Do NOT return markdown, code fences, or extra text. Return ONLY valid JSON.';
 

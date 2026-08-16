@@ -177,6 +177,14 @@ class _AiCoachScreenState extends ConsumerState<AiCoachScreen> {
               'Answer this question from the user in a supportive tone: "$text" '
               'Keep it practical, kind, and focused on achievable glow-up improvements. '
               'Never mention prices, products to buy, or Product A vs Product B comparisons. '
+              'When relevant, also suggest natural remedies to support the user\'s goals — '
+              'such as natural skincare ingredients (aloe vera, green tea, honey, oatmeal, rose water, '
+              'jojoba oil, coconut oil, shea butter), herbal teas (chamomile, green tea, peppermint, ginger), '
+              'dietary suggestions (antioxidant-rich foods, omega-3s, vitamin C, hydration), '
+              'lifestyle remedies (sleep, stress reduction, facial massage, dry brushing), '
+              'and natural hair care (coconut oil masks, aloe vera gel, rosemary rinse). '
+              'Always frame these as gentle, supportive suggestions — never as medical treatment '
+              'or a replacement for professional care. '
               '2-4 short paragraphs max.',
           manualCategory: DecisionCategory.glowup,
           operation: 'coachInsight',

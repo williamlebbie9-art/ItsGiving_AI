@@ -85,7 +85,15 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
               'and wellness habits that affect glow. '
               'Give a glow score out of 100 and specific, supportive recommendations. '
               'Use encouraging language like "Here\'s what you can enhance" — never judge or rank. '
-              'Do NOT mention prices, products to buy, or comparing Product A vs Product B.',
+              'Do NOT mention prices, products to buy, or comparing Product A vs Product B. '
+              'When relevant, also suggest natural remedies to support the user\'s glow — '
+              'such as natural skincare ingredients (aloe vera, green tea, honey, oatmeal, rose water, '
+              'jojoba oil, coconut oil, shea butter), herbal teas (chamomile, green tea, peppermint, ginger), '
+              'dietary suggestions (antioxidant-rich foods, omega-3s, vitamin C, hydration), '
+              'lifestyle remedies (sleep, stress reduction, facial massage, dry brushing), '
+              'and natural hair care (coconut oil masks, aloe vera gel, rosemary rinse). '
+              'Always frame these as gentle, supportive suggestions — never as medical treatment '
+              'or a replacement for professional care.',
           manualCategory: DecisionCategory.glowup,
           imagePaths: [_image!.path],
           operation: 'faceScan',
