@@ -1,9 +1,14 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/providers/app_providers.dart';
+import 'core/providers/onboarding_provider.dart';
+import 'features/glowup/auth_screen.dart';
 import 'features/glowup/enhanced_onboarding_screen.dart';
 import 'features/glowup/glow_app_shell.dart';
 
+/// Root app widget. Routes between onboarding, auth, and the main app.
 class GivingAiApp extends StatelessWidget {
   const GivingAiApp({super.key});
 
@@ -92,54 +97,57 @@ class GivingAiApp extends StatelessWidget {
   }
 }
 
-class _AppEntry extends StatefulWidget {
+class _AppEntry extends ConsumerStatefulWidget {
   const _AppEntry();
 
   @override
-  State<_AppEntry> createState() => _AppEntryState();
+  ConsumerState<_AppEntry> createState() => _AppEntryState();
 }
 
-class _AppEntryState extends State<_AppEntry> {
-  bool _checking = true;
-  bool _showOnboarding = false;
-
+class _AppEntryState extends ConsumerState<_AppEntry> {
   @override
   void initState() {
     super.initState();
-    _checkOnboardingStatus();
-  }
-
-  Future<void> _checkOnboardingStatus() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (!mounted) return;
-
-      final onboardingCompleted =
-          prefs.getBool('glowup_onboarding_completed') ?? false;
-
-      setState(() {
-        _showOnboarding = !onboardingCompleted;
-        _checking = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _showOnboarding = false;
-        _checking = false;
-      });
-    }
+    // Load onboarding status from local storage.
+    ref.read(onboardingProvider.notifier).load();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_checking) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    final onboardingCompleted = ref.watch(onboardingProvider);
 
-    if (_showOnboarding) {
-      return const EnhancedOnboardingScreen();
-    }
+    // Watch auth state. When a user signs in, initialize RevenueCat + usage.
+    return StreamBuilder<User?>(
+      stream: ref.watch(authServiceProvider).authStateChanges,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return const GlowAppShell();
+        final user = snapshot.data;
+        if (user != null) {
+          // Schedule initialization after the build phase completes.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _initializeForUser(user);
+          });
+          return const GlowAppShell();
+        }
+
+        // Not authenticated.
+        if (!onboardingCompleted) {
+          return const EnhancedOnboardingScreen();
+        }
+        return const AuthScreen();
+      },
+    );
+  }
+
+  void _initializeForUser(User user) {
+    // Initialize RevenueCat with the Firebase UID.
+    ref.read(subscriptionProvider.notifier).initialize(user.uid);
+    // Load usage counts for this UID.
+    ref.read(usageProvider.notifier).load(user.uid);
   }
 }

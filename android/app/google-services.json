@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "259251351524-uobh8id7trqdmclhhkt47bmr6tlu4t0i.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.william.itsgivingai",
+            "certificate_hash": "74ec539289da87386fc133f3669c1aa5aeba22c8"
+          }
+        },
+        {
           "client_id": "259251351524-276p6r7rn2o82udf4a9n9gbo8if37skr.apps.googleusercontent.com",
           "client_type": 3
         }

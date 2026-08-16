@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/decision_models.dart';
+import '../../core/providers/app_providers.dart';
 import '../../core/services/decision_engine.dart';
 import 'glow_models.dart';
+import 'paywall_screen.dart';
 import 'plan_provider.dart';
 
 class CoachMessage {
@@ -131,6 +133,22 @@ class _AiCoachScreenState extends ConsumerState<AiCoachScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty || _isTyping) return;
 
+    // Check auth + usage before making any expensive AI call.
+    final uid = ref.read(authServiceProvider).currentUid;
+    if (uid == null) {
+      _showPaywall('Please sign in to use the AI Coach.');
+      return;
+    }
+
+    final isPremium = ref.read(subscriptionProvider).isPremium;
+    final usage = ref.read(usageProvider);
+    if (!isPremium && usage.coachInsightCount >= 3) {
+      _showPaywall(
+        'You\'ve used your 3 free AI Coach insights. Upgrade to Premium for unlimited coaching.',
+      );
+      return;
+    }
+
     setState(() {
       _messages.add(CoachMessage(text: text, isUser: true));
       _isTyping = true;
@@ -161,8 +179,12 @@ class _AiCoachScreenState extends ConsumerState<AiCoachScreen> {
               'Never mention prices, products to buy, or Product A vs Product B comparisons. '
               '2-4 short paragraphs max.',
           manualCategory: DecisionCategory.glowup,
+          operation: 'coachInsight',
         ),
       );
+
+      // Only increment usage AFTER a successful AI response.
+      await ref.read(usageProvider.notifier).incrementCoachInsight(uid);
 
       if (!mounted) return;
       final reply = result.reasoning.isNotEmpty
@@ -186,6 +208,12 @@ class _AiCoachScreenState extends ConsumerState<AiCoachScreen> {
       });
       _scrollToBottom();
     }
+  }
+
+  void _showPaywall(String reason) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PaywallScreen(triggerReason: reason)),
+    );
   }
 
   void _scrollToBottom() {

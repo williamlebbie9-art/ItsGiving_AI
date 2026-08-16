@@ -1,16 +1,44 @@
-import 'package:decide_ai/app.dart';
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:decide_ai/app.dart';
+import 'package:decide_ai/core/providers/app_providers.dart';
+import 'package:decide_ai/core/services/auth_service.dart';
+
+/// Minimal fake User for tests — avoids touching native Firebase.
+class TestUser implements User {
+  const TestUser();
+
+  @override
+  String get uid => 'test-uid-123';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
-  testWidgets('new user sees enhanced glow-up onboarding then main shell', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('new user sees onboarding then main shell', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(const ProviderScope(child: GivingAiApp()));
+    // Fake auth stream — emit null (signed out) so the app routes to onboarding.
+    final controller = StreamController<User?>();
+    controller.add(null);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authServiceProvider.overrideWithValue(
+            AuthService(authStateStream: controller.stream),
+          ),
+        ],
+        child: const GivingAiApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('What is your main glow-up goal?'), findsOneWidget);
@@ -50,12 +78,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Your Glow Journey'), findsOneWidget);
-    expect(find.text('Glow'), findsOneWidget);
-    expect(find.text('Scan'), findsOneWidget);
-    expect(find.text('Plan'), findsOneWidget);
-    expect(find.text('Diary'), findsOneWidget);
-    expect(find.text('Coach'), findsOneWidget);
-    expect(find.text('Inspo'), findsOneWidget);
+    // Signed-out user completes onboarding → routed to the auth screen.
+    expect(find.text('Your glow-up is almost ready ✨'), findsOneWidget);
+    expect(find.text('Continue with Google'), findsOneWidget);
+
+    await controller.close();
   });
 }

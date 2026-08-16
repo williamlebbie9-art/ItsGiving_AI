@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -20,6 +21,14 @@ class PlanService {
   static const _localUserIdKey = 'glowup_user_id';
 
   Future<String> _getUserId() async {
+    // Use the authenticated Firebase UID as the unique identifier.
+    final auth = FirebaseAuth.instance;
+    final uid = auth.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      return uid;
+    }
+
+    // Fallback for local-only mode (e.g. tests) — never used in production.
     final prefs = await SharedPreferences.getInstance();
     var userId = prefs.getString(_localUserIdKey);
     if (userId == null || userId.isEmpty) {

@@ -9,6 +9,100 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
+// Free-tier usage limits (mirrors the client).
+const FREE_LIMITS = {
+  faceScan: 1,
+  coachInsight: 3,
+  plan: 1,
+};
+
+/**
+ * Verifies the Firebase ID token from the Authorization header.
+ * Returns the UID, or null if the token is invalid/missing.
+ */
+async function verifyAuth(req) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : authHeader;
+  if (!token) {
+    return null;
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    return decoded.uid;
+  } catch (e) {
+    logger.warn("Auth verification failed", { error: e.message });
+    return null;
+  }
+}
+
+/**
+ * Reads the user's usage counters from Firestore.
+ * Returns { faceScanCount, coachInsightCount, planCount }.
+ */
+async function getUsage(uid) {
+  try {
+    const doc = await admin
+      .firestore()
+      .collection("users")
+      .doc(uid)
+      .collection("usage")
+      .doc("counts")
+      .get();
+    if (!doc.exists) {
+      return { faceScanCount: 0, coachInsightCount: 0, planCount: 0 };
+    }
+    const data = doc.data() || {};
+    return {
+      faceScanCount: data.faceScanCount || 0,
+      coachInsightCount: data.coachInsightCount || 0,
+      planCount: data.planCount || 0,
+    };
+  } catch (e) {
+    logger.warn("Could not read usage", { error: e.message });
+    return { faceScanCount: 0, coachInsightCount: 0, planCount: 0 };
+  }
+}
+
+/**
+ * Increments a usage counter for the user.
+ */
+async function incrementUsage(uid, field) {
+  try {
+    await admin
+      .firestore()
+      .collection("users")
+      .doc(uid)
+      .collection("usage")
+      .doc("counts")
+      .set({ [field]: admin.firestore.FieldValue.increment(1) }, { merge: true });
+  } catch (e) {
+    logger.warn("Could not increment usage", { error: e.message });
+  }
+}
+
+/**
+ * Checks whether the user is allowed to perform the given AI operation.
+ * Returns { allowed: true } or { allowed: false, reason }.
+ */
+async function checkAccess(uid, operation) {
+  const usage = await getUsage(uid);
+  const limit = FREE_LIMITS[operation];
+  if (limit == null) {
+    return { allowed: true };
+  }
+
+  const count = usage[`${operation}Count`] || 0;
+  if (count >= limit) {
+    return {
+      allowed: false,
+      reason: `Free limit reached for ${operation}. Upgrade to Premium for unlimited access.`,
+    };
+  }
+  return { allowed: true };
+}
+
 exports.generateDecision = onRequest(
   {
     cors: true,
@@ -24,9 +118,26 @@ exports.generateDecision = onRequest(
       return;
     }
 
-    const { category, prompt, images = [] } = req.body ?? {};
+    const { category, prompt, images = [], operation } = req.body ?? {};
     if (!prompt || typeof prompt !== "string") {
       res.status(400).json({ error: "prompt is required." });
+      return;
+    }
+
+    // Verify the user is authenticated.
+    const uid = await verifyAuth(req);
+    if (!uid) {
+      res.status(401).json({ error: "Authentication required." });
+      return;
+    }
+
+    // Determine which usage bucket this request consumes.
+    const op = typeof operation === "string" ? operation : "coachInsight";
+
+    // Check access BEFORE making any expensive AI call.
+    const access = await checkAccess(uid, op);
+    if (!access.allowed) {
+      res.status(403).json({ error: access.reason });
       return;
     }
 
@@ -34,8 +145,10 @@ exports.generateDecision = onRequest(
     const provider = (process.env.AI_PROVIDER || "openai").toLowerCase();
 
     logger.info("Function received request", {
+      uid,
       category: normalizedCategory,
       provider,
+      operation: op,
       promptLength: prompt.length,
       imageCount: images.length,
     });
@@ -46,6 +159,10 @@ exports.generateDecision = onRequest(
         : await callGemini({ category: normalizedCategory, prompt, images });
 
       result.category = result.category || normalizedCategory;
+
+      // Only increment usage AFTER a successful AI call.
+      await incrementUsage(uid, `${op}Count`);
+
       res.status(200).json(result);
     } catch (error) {
       logger.error("generateDecision failed", error);
@@ -78,8 +195,16 @@ exports.generateGlowUpImage = onRequest(
       return;
     }
 
+    // Verify the user is authenticated.
+    const uid = await verifyAuth(req);
+    if (!uid) {
+      res.status(401).json({ error: "Authentication required." });
+      return;
+    }
+
     const style = glowUpStyles[styleId] || glowUpStyles["clean-girl"];
     logger.info("generateGlowUpImage request", {
+      uid,
       styleId: style.id,
       prompt: style.generationPrompt,
       imageBytes: Math.round((image.data.length * 3) / 4),

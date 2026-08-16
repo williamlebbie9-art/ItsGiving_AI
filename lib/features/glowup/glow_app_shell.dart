@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/providers/app_providers.dart';
 import 'ai_coach_screen.dart';
 import 'ai_face_scan_screen.dart';
 import 'enhanced_onboarding_screen.dart';
@@ -595,13 +596,21 @@ class _DailyGlowTipCard extends StatelessWidget {
   }
 }
 
-class _BrandHeader extends StatelessWidget {
+class _BrandHeader extends ConsumerWidget {
   const _BrandHeader({this.trailing});
 
   final String? trailing;
 
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    // Clear user-specific in-memory state.
+    ref.read(usageProvider.notifier).reset();
+    ref.read(subscriptionProvider.notifier).logOut();
+    // Sign out of Firebase. The auth stream in app.dart will route to auth.
+    await ref.read(authServiceProvider).signOut();
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Row(
       children: [
         Container(
@@ -631,6 +640,11 @@ class _BrandHeader extends StatelessWidget {
             avatar: const Icon(Icons.local_fire_department_rounded, size: 18),
             label: Text(trailing!),
           ),
+        IconButton(
+          icon: const Icon(Icons.logout_rounded),
+          tooltip: 'Log out',
+          onPressed: () => _logout(context, ref),
+        ),
       ],
     );
   }

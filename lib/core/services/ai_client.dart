@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -188,6 +189,9 @@ class AiClient {
 
     final images = await _buildImagePayloads(imagePaths: request.imagePaths);
 
+    // Attach the Firebase ID token for backend auth validation.
+    final idToken = await _getIdToken();
+
     // Function received request
     // ignore: avoid_print
     print(
@@ -197,12 +201,16 @@ class AiClient {
     final response = await http
         .post(
           Uri.parse(functionUrl),
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            if (idToken != null) 'Authorization': 'Bearer $idToken',
+          },
           body: jsonEncode({
             'category': category.value,
             'prompt': prompt,
             'request': request.toJson(),
             'images': images,
+            'operation': request.operation,
           }),
         )
         .timeout(
@@ -251,13 +259,19 @@ class AiClient {
       throw Exception('Could not read image at $imagePath');
     }
 
+    // Attach the Firebase ID token for backend auth validation.
+    final idToken = await _getIdToken();
+
     // ignore: avoid_print
     print('[AI] Image generation request started. style=$styleId');
 
     final response = await http
         .post(
           Uri.parse(functionUrl),
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            if (idToken != null) 'Authorization': 'Bearer $idToken',
+          },
           body: jsonEncode({
             'image': {
               'mimeType': _mimeFromPath(imagePath),
@@ -291,6 +305,17 @@ class AiClient {
     print('[AI] Image generation response received. bytes=${b64.length}');
 
     return base64Decode(b64);
+  }
+
+  /// Gets the current Firebase ID token for backend auth validation.
+  Future<String?> _getIdToken() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+      return await user.getIdToken();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<Map<String, String>>> _buildImagePayloads({

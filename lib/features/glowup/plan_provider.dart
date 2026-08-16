@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/providers/app_providers.dart';
 import 'glow_models.dart';
 import 'plan_models.dart';
 import 'plan_service.dart';
@@ -35,9 +36,10 @@ class PlanState {
 }
 
 class PlanNotifier extends StateNotifier<PlanState> {
-  PlanNotifier(this._service) : super(const PlanState());
+  PlanNotifier(this._service, this._ref) : super(const PlanState());
 
   final PlanService _service;
+  final Ref _ref;
 
   /// Loads the current plan. Shows local data instantly, then refreshes
   /// from Firebase in the background.
@@ -78,16 +80,42 @@ class PlanNotifier extends StateNotifier<PlanState> {
   }
 
   /// Generates a new personalized plan.
+  ///
+  /// Enforces the free plan limit (1 plan) unless the user is premium.
+  /// Usage is only incremented AFTER a successful plan generation.
   Future<bool> generatePlan({
     required GlowUserProfile profile,
     String? faceScanSummary,
   }) async {
+    // Check auth + usage before making any expensive AI call.
+    final uid = _ref.read(authServiceProvider).currentUid;
+    if (uid == null) {
+      state = state.copyWith(
+        isGenerating: false,
+        error: 'Please sign in to create a glow-up plan.',
+      );
+      return false;
+    }
+
+    final isPremium = _ref.read(subscriptionProvider).isPremium;
+    final usage = _ref.read(usageProvider);
+    if (!isPremium && usage.planCount >= 1) {
+      state = state.copyWith(
+        isGenerating: false,
+        error:
+            'You\'ve used your free glow-up plan. Upgrade to Premium for unlimited plans.',
+      );
+      return false;
+    }
+
     state = state.copyWith(isGenerating: true, clearError: true);
     try {
       final plan = await _service.generatePlan(
         profile: profile,
         faceScanSummary: faceScanSummary,
       );
+      // Only increment usage AFTER a successful plan generation.
+      await _ref.read(usageProvider.notifier).incrementPlan(uid);
       state = state.copyWith(plan: plan, isGenerating: false);
       return true;
     } catch (e) {
@@ -155,5 +183,5 @@ class PlanNotifier extends StateNotifier<PlanState> {
 final planServiceProvider = Provider<PlanService>((ref) => PlanService());
 
 final planProvider = StateNotifierProvider<PlanNotifier, PlanState>(
-  (ref) => PlanNotifier(ref.watch(planServiceProvider)),
+  (ref) => PlanNotifier(ref.watch(planServiceProvider), ref),
 );

@@ -1,12 +1,13 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'glow_app_shell.dart';
+import '../../core/providers/app_providers.dart';
+import '../../core/providers/onboarding_provider.dart';
 import 'glow_models.dart';
-import 'plan_provider.dart';
 
 class EnhancedOnboardingScreen extends ConsumerStatefulWidget {
   const EnhancedOnboardingScreen({super.key});
@@ -133,7 +134,7 @@ class _EnhancedOnboardingScreenState
     setState(() => _isFinishing = true);
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('glowup_onboarding_completed', true);
+    await ref.read(onboardingProvider.notifier).complete();
 
     String? joined(String key) {
       final values = _answers[key];
@@ -154,19 +155,40 @@ class _EnhancedOnboardingScreenState
 
     if (!mounted) return;
 
-    // Generate the personalized 30-day plan in the background.
-    // The Home screen will show a skeleton while this completes.
-    ref.read(planProvider.notifier).generatePlan(profile: profile);
+    // Auto sign-in anonymously so the user can continue as a guest.
+    // No login screen is shown — the anonymous UID becomes the single
+    // source of truth for all user data.
+    try {
+      final user = await ref.read(authServiceProvider).signInAnonymously();
+      // Persist the onboarding profile under the anonymous UID so it can be
+      // restored after an app restart.
+      await _saveProfileToFirestore(user.uid, profile);
+    } catch (e) {
+      // Even if anonymous sign-in fails (e.g. Firebase not configured in
+      // tests), the user can still continue with a local-only session.
+      debugPrint('[Onboarding] Anonymous sign-in failed: $e');
+    }
 
-    // If onboarding was opened from within the app (e.g. "Create My Plan"
-    // after skipping), pop back to the existing shell. Otherwise this is
-    // the first-run flow, so replace this screen with the main shell.
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const GlowAppShell()),
-      );
+    // Routing is handled by app.dart's auth state stream: once the anonymous
+    // user is signed in, the app swaps to GlowAppShell automatically.
+    // If sign-in failed, onboarding is marked complete so AuthScreen shows
+    // (which offers "Continue as Guest").
+    if (!mounted) return;
+  }
+
+  /// Saves the onboarding profile to Firestore under the user's UID.
+  Future<void> _saveProfileToFirestore(
+    String uid,
+    GlowUserProfile profile,
+  ) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'profile': profile.toJson(),
+        'onboardingCompleted': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[Onboarding] Could not save profile to Firestore: $e');
     }
   }
 

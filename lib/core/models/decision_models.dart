@@ -36,6 +36,7 @@ class DecisionRequest {
     this.imagePaths = const [],
     this.userProfile,
     this.pastDecisions = const [],
+    this.operation,
   });
 
   final String query;
@@ -52,6 +53,10 @@ class DecisionRequest {
   final UserProfile? userProfile;
   final List<DecisionResult> pastDecisions;
 
+  /// Which usage bucket this request consumes on the backend:
+  /// 'faceScan', 'coachInsight', or 'plan'.
+  final String? operation;
+
   Map<String, dynamic> toJson() {
     return {
       'query': query,
@@ -67,6 +72,7 @@ class DecisionRequest {
       'imagePaths': imagePaths,
       'userProfile': userProfile?.toJson(),
       'pastDecisions': pastDecisions.map((d) => d.toJson()).toList(),
+      'operation': operation,
     };
   }
 

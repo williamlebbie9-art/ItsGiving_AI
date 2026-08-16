@@ -1,36 +1,74 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/models/decision_models.dart';
+import '../../core/providers/app_providers.dart';
 import '../../core/services/decision_engine.dart';
 import 'glow_up_generator_screen.dart';
 import 'glowup_app.dart';
+import 'paywall_screen.dart';
 
 /// AI-powered face scan screen that sends the selfie to the AI service
 /// for real glow-up analysis.
-class AiFaceScanScreen extends StatefulWidget {
+///
+/// Enforces:
+/// - User must be authenticated.
+/// - Free users get 1 introductory scan; premium users get unlimited.
+/// - Usage is only incremented AFTER a successful AI call.
+/// - Request locking prevents duplicate taps from triggering multiple AI calls.
+class AiFaceScanScreen extends ConsumerStatefulWidget {
   const AiFaceScanScreen({super.key});
 
   @override
-  State<AiFaceScanScreen> createState() => _AiFaceScanScreenState();
+  ConsumerState<AiFaceScanScreen> createState() => _AiFaceScanScreenState();
 }
 
-class _AiFaceScanScreenState extends State<AiFaceScanScreen> {
+class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
   final _picker = ImagePicker();
   final _engine = DecisionEngine();
   XFile? _image;
   bool _analyzing = false;
   String? _analysisResult;
+  bool _requestLocked = false;
 
   Future<void> _pick(ImageSource source) async {
     final image = await _picker.pickImage(source: source, imageQuality: 82);
     if (image != null) setState(() => _image = image);
   }
 
+  /// Checks whether the user can perform a face scan.
+  /// Returns null if allowed, or a reason string if blocked.
+  String? _checkScanAllowed() {
+    final uid = ref.read(authServiceProvider).currentUid;
+    if (uid == null) {
+      return 'Please sign in to use the AI Face Scan.';
+    }
+
+    final isPremium = ref.read(subscriptionProvider).isPremium;
+    if (isPremium) return null;
+
+    final usage = ref.read(usageProvider);
+    if (usage.faceScanCount >= 1) {
+      return 'You\'ve used your free face scan. Upgrade to Premium for unlimited scans.';
+    }
+    return null;
+  }
+
   Future<void> _analyze() async {
-    if (_image == null) return;
+    if (_image == null || _analyzing || _requestLocked) return;
+
+    // Check auth + usage before making any expensive AI call.
+    final blockedReason = _checkScanAllowed();
+    if (blockedReason != null) {
+      _showPaywall(blockedReason);
+      return;
+    }
+
+    // Lock the request to prevent duplicate taps.
+    _requestLocked = true;
     setState(() {
       _analyzing = true;
       _analysisResult = null;
@@ -50,8 +88,15 @@ class _AiFaceScanScreenState extends State<AiFaceScanScreen> {
               'Do NOT mention prices, products to buy, or comparing Product A vs Product B.',
           manualCategory: DecisionCategory.glowup,
           imagePaths: [_image!.path],
+          operation: 'faceScan',
         ),
       );
+
+      // Only increment usage AFTER a successful AI call.
+      final uid = ref.read(authServiceProvider).currentUid;
+      if (uid != null) {
+        await ref.read(usageProvider.notifier).incrementFaceScan(uid);
+      }
 
       if (!mounted) return;
       setState(() {
@@ -59,15 +104,24 @@ class _AiFaceScanScreenState extends State<AiFaceScanScreen> {
             ? result.reasoning
             : '${result.bestChoice}\n\n${result.pros.join('\n')}';
         _analyzing = false;
+        _requestLocked = false;
       });
     } catch (e) {
       if (!mounted) return;
       // Surface the real error. Never mask AI failures with a fake analysis.
+      // Do NOT increment usage on failure.
       setState(() {
         _analysisResult = 'AI REQUEST FAILED\n\n$e';
         _analyzing = false;
+        _requestLocked = false;
       });
     }
+  }
+
+  void _showPaywall(String reason) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PaywallScreen(triggerReason: reason)),
+    );
   }
 
   Future<void> _openGenerator() async {
