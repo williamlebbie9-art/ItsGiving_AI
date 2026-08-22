@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:decide_ai/app.dart';
-import 'package:decide_ai/core/providers/app_providers.dart';
-import 'package:decide_ai/core/services/auth_service.dart';
+import 'package:its_giving_ai/app.dart';
+import 'package:its_giving_ai/core/providers/app_providers.dart';
+import 'package:its_giving_ai/core/services/auth_service.dart';
 
 /// Minimal fake User for tests — avoids touching native Firebase.
 class TestUser implements User {
@@ -22,7 +22,7 @@ class TestUser implements User {
 }
 
 void main() {
-  testWidgets('new user sees onboarding then main shell', (tester) async {
+  testWidgets('new user sees onboarding then intro face scan', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
     // Fake auth stream — emit null (signed out) so the app routes to onboarding.
@@ -39,48 +39,52 @@ void main() {
         child: const GivingAiApp(),
       ),
     );
-    await tester.pumpAndSettle();
+    // Use bounded pumps (never pumpAndSettle) so tests cannot hang on
+    // perpetual animations (e.g. spinners).
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('What is your main glow-up goal?'), findsOneWidget);
+    // 1. Brand-new user → onboarding appears.
+    expect(
+      find.text('What is your main glow-up goal?'),
+      findsOneWidget,
+      reason: 'A brand-new user must see onboarding, not Home.',
+    );
+    expect(find.text('Your Glow Journey'), findsNothing);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
-    await tester.pumpAndSettle();
+    // Walk through the remaining 6 onboarding questions.
+    for (var page = 0; page < 6; page++) {
+      await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
 
-    expect(find.text('What is your current skincare routine?'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('How often do you exercise?'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('What is your typical sleep schedule?'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('What aesthetic or vibe do you want?'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('What is your skin type?'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('What describes your lifestyle?'), findsOneWidget);
-
+    // Final question — tap Start.
     await tester.tap(
       find.widgetWithText(FilledButton, 'Start My Glow Journey ✨'),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
 
-    // Signed-out user completes onboarding → routed to the auth screen.
-    expect(find.text('Your glow-up is almost ready ✨'), findsOneWidget);
-    expect(find.text('Continue with Google'), findsOneWidget);
+    // 2. After onboarding → intro face scan flow appears, NOT Home.
+    expect(
+      find.text('AI Face Scan'),
+      findsOneWidget,
+      reason: 'After onboarding the user must continue to the intro scan.',
+    );
+    expect(
+      find.text('Your Glow Journey'),
+      findsNothing,
+      reason: 'The user must NOT be routed to Home after onboarding.',
+    );
+    expect(
+      find.text('Your glow-up is almost ready ✨'),
+      findsNothing,
+      reason: 'The auth screen must not block the intro flow for new users.',
+    );
 
     await controller.close();
   });

@@ -63,6 +63,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '259251351524',
     projectId: 'decide-ai-89445',
     storageBucket: 'decide-ai-89445.firebasestorage.app',
-    iosBundleId: 'Com.william.itsgivingai',
+    iosBundleId: 'com.william.itsgivingai',
   );
 }

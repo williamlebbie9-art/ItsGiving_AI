@@ -3,12 +3,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/decision_models.dart';
 import '../../core/providers/app_providers.dart';
+import '../../core/providers/user_journey_provider.dart';
 import '../../core/services/decision_engine.dart';
+import 'glow_app_shell.dart';
 import 'glow_up_generator_screen.dart';
 import 'glowup_app.dart';
+import 'intro_paywall_auth_gate.dart';
 import 'paywall_screen.dart';
 
 /// AI-powered face scan screen that sends the selfie to the AI service
@@ -20,7 +24,12 @@ import 'paywall_screen.dart';
 /// - Usage is only incremented AFTER a successful AI call.
 /// - Request locking prevents duplicate taps from triggering multiple AI calls.
 class AiFaceScanScreen extends ConsumerStatefulWidget {
-  const AiFaceScanScreen({super.key});
+  const AiFaceScanScreen({super.key, this.isIntroFlow = false});
+
+  /// When true, this is the mandatory first-run introductory scan.
+  /// The real AI analysis is persisted so returning users can continue
+  /// the intro flow (scan → plan → paywall) after an app restart.
+  final bool isIntroFlow;
 
   @override
   ConsumerState<AiFaceScanScreen> createState() => _AiFaceScanScreenState();
@@ -32,6 +41,7 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
   XFile? _image;
   bool _analyzing = false;
   String? _analysisResult;
+  String? _errorMessage;
   bool _requestLocked = false;
 
   Future<void> _pick(ImageSource source) async {
@@ -72,6 +82,7 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
     setState(() {
       _analyzing = true;
       _analysisResult = null;
+      _errorMessage = null;
     });
 
     try {
@@ -106,11 +117,19 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
         await ref.read(usageProvider.notifier).incrementFaceScan(uid);
       }
 
+      final summary = result.reasoning.isNotEmpty
+          ? result.reasoning
+          : '${result.bestChoice}\n\n${result.pros.join('\n')}';
+
+      // Persist the REAL AI analysis for the intro flow so returning users
+      // can continue after an app restart. Never a mock.
+      if (widget.isIntroFlow) {
+        await _persistIntroResults(summary);
+      }
+
       if (!mounted) return;
       setState(() {
-        _analysisResult = result.reasoning.isNotEmpty
-            ? result.reasoning
-            : '${result.bestChoice}\n\n${result.pros.join('\n')}';
+        _analysisResult = summary;
         _analyzing = false;
         _requestLocked = false;
       });
@@ -119,10 +138,46 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
       // Surface the real error. Never mask AI failures with a fake analysis.
       // Do NOT increment usage on failure.
       setState(() {
-        _analysisResult = 'AI REQUEST FAILED\n\n$e';
+        _errorMessage = e.toString();
         _analyzing = false;
         _requestLocked = false;
       });
+    }
+  }
+
+  /// Allows the user to skip the AI scan and continue into the app.
+  /// Only available in the intro flow so users are never permanently stuck
+  /// if the AI service is unavailable.
+  ///
+  /// The paywall and auth screen are ALWAYS shown before entering the app,
+  /// even when skipping the scan.
+  Future<void> _skipScan() async {
+    if (widget.isIntroFlow) {
+      // Show the paywall then the auth screen before entering the app.
+      await showIntroPaywallAuthGate(context, ref);
+      if (!mounted) return;
+
+      await ref.read(userJourneyProvider.notifier).markIntroFlowCompleted();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const GlowAppShell()),
+        (route) => false,
+      );
+    }
+  }
+
+  /// Persists the real AI analysis + image path so the intro flow can be
+  /// resumed after an app restart.
+  Future<void> _persistIntroResults(String summary) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('glowup_last_scan_summary', summary);
+      final image = _image;
+      if (image != null) {
+        await prefs.setString('glowup_last_scan_image_path', image.path);
+      }
+    } catch (e) {
+      debugPrint('[FaceScan] Could not persist intro results: $e');
     }
   }
 
@@ -137,11 +192,20 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
     if (image == null) return;
     final summary = _analysisResult;
     if (!mounted) return;
+
+    // After the introductory scan, show the paywall then the auth screen
+    // BEFORE the user continues to the glow-up generator / plan builder.
+    if (widget.isIntroFlow) {
+      await showIntroPaywallAuthGate(context, ref);
+      if (!mounted) return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => GlowUpGeneratorScreen(
           imagePath: image.path,
           faceScanSummary: summary,
+          isIntroFlow: widget.isIntroFlow,
         ),
       ),
     );
@@ -150,101 +214,162 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
   @override
   Widget build(BuildContext context) {
     return GlowScaffold(
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
-          children: [
-            const ScreenHeading(
-              title: 'AI Face Scan',
-              subtitle:
-                  'Analyze skin, symmetry, brows, hair fit, smile, and glow potential.',
-            ),
-            const SizedBox(height: 18),
-            GlassCard(
-              padding: EdgeInsets.zero,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: AspectRatio(
-                  aspectRatio: 0.86,
-                  child: _image == null
-                      ? const GlowCameraPlaceholder()
-                      : Image.file(File(_image!.path), fit: BoxFit.cover),
-                ),
+      child: Material(
+        color: Colors.transparent,
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
+            children: [
+              const ScreenHeading(
+                title: 'AI Face Scan',
+                subtitle:
+                    'Analyze skin, symmetry, brows, hair fit, smile, and glow potential.',
               ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _pick(ImageSource.camera),
-                    icon: const Icon(Icons.camera_alt_rounded),
-                    label: const Text('Camera'),
+              const SizedBox(height: 18),
+              GlassCard(
+                padding: EdgeInsets.zero,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: AspectRatio(
+                    aspectRatio: 0.86,
+                    child: _image == null
+                        ? const GlowCameraPlaceholder()
+                        : Image.file(File(_image!.path), fit: BoxFit.cover),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _pick(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library_rounded),
-                    label: const Text('Gallery'),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => _pick(ImageSource.camera),
+                      icon: const Icon(Icons.camera_alt_rounded),
+                      label: const Text('Camera'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pick(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_rounded),
+                      label: const Text('Gallery'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _image == null || _analyzing ? null : _analyze,
+                child: _analyzing
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 10),
+                          Text('Analyzing glow potential...'),
+                        ],
+                      )
+                    : const Text('Generate Glow-Up Assessment'),
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 16),
+                GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionTitle('AI Analysis Unavailable'),
+                      const SizedBox(height: 8),
+                      Text(
+                        'We couldn\'t reach the AI service right now. '
+                        'Please check your connection and try again.',
+                        style: TextStyle(color: GlowColors.muted),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          color: GlowColors.muted,
+                          fontSize: 11,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _analyze,
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Try Again'),
+                            ),
+                          ),
+                          if (widget.isIntroFlow) ...[
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _skipScan,
+                                child: const Text('Skip for now'),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _image == null || _analyzing ? null : _analyze,
-              child: _analyzing
-                  ? const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        SizedBox(width: 10),
-                        Text('Analyzing glow potential...'),
-                      ],
-                    )
-                  : const Text('Generate Glow-Up Assessment'),
-            ),
-            if (_analysisResult != null) ...[
-              const SizedBox(height: 16),
-              GlassCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SectionTitle('AI Analysis'),
-                    const SizedBox(height: 8),
-                    Text(_analysisResult!),
-                  ],
+              if (_analysisResult != null) ...[
+                const SizedBox(height: 16),
+                GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionTitle('AI Analysis'),
+                      const SizedBox(height: 8),
+                      Text(_analysisResult!),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _openGenerator,
+                  icon: const Icon(Icons.auto_awesome_rounded),
+                  label: const Text('Explore Your Glow-Up'),
+                ),
+              ],
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: const [
+                  'Skin quality',
+                  'Skincare opportunities',
+                  'Face shape',
+                  'Hairstyle fit',
+                  'Brow styling',
+                  'Makeup opportunities',
+                  'Grooming',
+                  'Wellness habits',
+                ].map((label) => Chip(label: Text(label))).toList(),
               ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _openGenerator,
-                icon: const Icon(Icons.auto_awesome_rounded),
-                label: const Text('Explore Your Glow-Up'),
-              ),
+              if (widget.isIntroFlow) ...[
+                const SizedBox(height: 24),
+                TextButton.icon(
+                  onPressed: _skipScan,
+                  icon: const Icon(Icons.skip_next_rounded),
+                  label: const Text('Skip for now — go to app'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: GlowColors.muted,
+                  ),
+                ),
+              ],
             ],
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: const [
-                'Skin quality',
-                'Skincare opportunities',
-                'Face shape',
-                'Hairstyle fit',
-                'Brow styling',
-                'Makeup opportunities',
-                'Grooming',
-                'Wellness habits',
-              ].map((label) => Chip(label: Text(label))).toList(),
-            ),
-          ],
+          ),
         ),
       ),
     );

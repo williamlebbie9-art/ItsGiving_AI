@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/app_providers.dart';
 import 'ai_coach_screen.dart';
 import 'ai_face_scan_screen.dart';
+import 'auth_screen.dart';
 import 'enhanced_onboarding_screen.dart';
 import 'feature_cards_screen.dart';
 import 'glow_up_plan_screen.dart';
@@ -639,6 +640,18 @@ class _BrandHeader extends ConsumerWidget {
           Chip(
             avatar: const Icon(Icons.local_fire_department_rounded, size: 18),
             label: Text(trailing!),
+          ),
+        // Sign-in-later: if the user is anonymous, show an account button
+        // that links their credential to the existing anonymous UID.
+        if (ref.watch(authServiceProvider).currentUser?.isAnonymous == true)
+          IconButton(
+            icon: const Icon(Icons.account_circle_rounded),
+            tooltip: 'Create account / Sign in',
+            onPressed: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const AuthScreen()));
+            },
           ),
         IconButton(
           icon: const Icon(Icons.logout_rounded),

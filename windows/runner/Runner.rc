@@ -92,9 +92,9 @@ BEGIN
             VALUE "CompanyName", "com.example" "\0"
             VALUE "FileDescription", "its giving.AI" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "decide_ai" "\0"
+            VALUE "InternalName", "its_giving_ai" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "decide_ai.exe" "\0"
+            VALUE "OriginalFilename", "its_giving_ai.exe" "\0"
             VALUE "ProductName", "its giving.AI" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END

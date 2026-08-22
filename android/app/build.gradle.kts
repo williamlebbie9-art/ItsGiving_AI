@@ -21,7 +21,7 @@ android {
     }
 
     defaultConfig {
-        // Decide AI Android application ID.
+        // ItsGiving AI Android application ID.
         applicationId = "com.william.itsgivingai"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.

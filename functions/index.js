@@ -335,7 +335,9 @@ function buildGlowUpPrompt(style, faceScanSummary) {
     `Preserve the person's recognizable facial identity, facial proportions, skin tone, and natural features. ` +
     `Change only the requested styling elements: ${style.generationPrompt}` +
     summaryPart +
-    ` Produce a realistic, flattering, photorealistic result suitable as personal style inspiration.`
+    ` Give the person a confident, alluring, magnetic presence with a subtle sultry gaze, ` +
+    `soft glowing skin, and a poised, self-assured posture that radiates quiet sex appeal. ` +
+    `Produce a realistic, flattering, photorealistic result suitable as personal style inspiration.`
   );
 }
 

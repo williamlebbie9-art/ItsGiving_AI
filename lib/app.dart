@@ -1,14 +1,17 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'core/providers/app_providers.dart';
 import 'core/providers/onboarding_provider.dart';
-import 'features/glowup/auth_screen.dart';
+import 'core/providers/user_journey_provider.dart';
+import 'features/glowup/ai_face_scan_intro_flow.dart';
 import 'features/glowup/enhanced_onboarding_screen.dart';
 import 'features/glowup/glow_app_shell.dart';
 
 /// Root app widget. Routes between onboarding, auth, and the main app.
+///
+/// IMPORTANT: Firebase authentication status is NOT used to decide whether
+/// the user has completed onboarding, scanned, or paid. Those are separate
+/// persistent states tracked by [UserJourneyState].
 class GivingAiApp extends StatelessWidget {
   const GivingAiApp({super.key});
 
@@ -108,46 +111,68 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
   @override
   void initState() {
     super.initState();
-    // Load onboarding status from local storage.
-    ref.read(onboardingProvider.notifier).load();
+    // Load the user's persistent app state (onboarding, intro scan, etc.)
+    // and restore/create the anonymous Firebase identity.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(userJourneyProvider.notifier).initialize();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final journey = ref.watch(userJourneyProvider);
+    // Watch the live onboarding notifier directly. This state updates
+    // immediately when onboarding is completed mid-session.
     final onboardingCompleted = ref.watch(onboardingProvider);
 
-    // Watch auth state. When a user signs in, initialize RevenueCat + usage.
-    return StreamBuilder<User?>(
-      stream: ref.watch(authServiceProvider).authStateChanges,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    // Show a proper loading screen while state is loading.
+    // Never show Home (or any other screen) until we know where the user is.
+    if (journey.isLoading) {
+      return const _SplashScreen();
+    }
 
-        final user = snapshot.data;
-        if (user != null) {
-          // Schedule initialization after the build phase completes.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _initializeForUser(user);
-          });
-          return const GlowAppShell();
-        }
+    // 1. Onboarding first — regardless of auth state.
+    if (!onboardingCompleted) {
+      return const EnhancedOnboardingScreen();
+    }
 
-        // Not authenticated.
-        if (!onboardingCompleted) {
-          return const EnhancedOnboardingScreen();
-        }
-        return const AuthScreen();
-      },
-    );
+    // 2. Intro flow — user has onboarded but not completed their
+    //    introductory face scan → plan → paywall journey.
+    if (!journey.introFlowCompleted) {
+      return const _IntroFlowGate();
+    }
+
+    // 3. Main app.
+    return const GlowAppShell();
   }
+}
 
-  void _initializeForUser(User user) {
-    // Initialize RevenueCat with the Firebase UID.
-    ref.read(subscriptionProvider.notifier).initialize(user.uid);
-    // Load usage counts for this UID.
-    ref.read(usageProvider.notifier).load(user.uid);
+/// Shows the intro flow (face scan → results → plan → paywall) for users
+/// who have completed onboarding but not yet finished their first scan.
+class _IntroFlowGate extends ConsumerStatefulWidget {
+  const _IntroFlowGate();
+
+  @override
+  ConsumerState<_IntroFlowGate> createState() => _IntroFlowGateState();
+}
+
+class _IntroFlowGateState extends ConsumerState<_IntroFlowGate> {
+  @override
+  Widget build(BuildContext context) {
+    // The intro flow is the AI Face Scan screen. From there the user
+    // progresses: scan → results → plan → paywall → Home.
+    // We use a Key so that if the user signs out and back in, the flow
+    // restarts cleanly.
+    return const AiFaceScanIntroFlow();
+  }
+}
+
+/// Simple branded splash while app state loads.
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

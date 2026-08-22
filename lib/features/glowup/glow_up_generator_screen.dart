@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/providers/user_journey_provider.dart';
 import '../../core/services/ai_client.dart';
+import 'glow_app_shell.dart';
 import 'glow_models.dart';
 import 'glow_up_plan_screen.dart';
 import 'glowup_app.dart';
@@ -86,11 +88,17 @@ class GlowUpGeneratorScreen extends ConsumerStatefulWidget {
   const GlowUpGeneratorScreen({
     required this.imagePath,
     this.faceScanSummary,
+    this.isIntroFlow = false,
     super.key,
   });
 
   final String imagePath;
   final String? faceScanSummary;
+
+  /// When true, this is part of the mandatory first-run intro flow. The
+  /// paywall and auth screen are shown after the introductory face scan,
+  /// then the user enters Home after the plan is generated.
+  final bool isIntroFlow;
 
   @override
   ConsumerState<GlowUpGeneratorScreen> createState() =>
@@ -165,9 +173,21 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
 
       if (!mounted) return;
       if (success) {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const GlowUpPlanScreen()));
+        if (widget.isIntroFlow) {
+          // First-run intro flow: the paywall and auth screen were already
+          // shown after the introductory face scan. Mark the flow complete
+          // and enter the main Home experience.
+          await ref.read(userJourneyProvider.notifier).markIntroFlowCompleted();
+          if (!mounted) return;
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const GlowAppShell()),
+            (route) => false,
+          );
+        } else {
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const GlowUpPlanScreen()));
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
