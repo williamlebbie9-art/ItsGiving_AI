@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/onboarding_provider.dart';
 import 'glow_models.dart';
+import 'plan_provider.dart';
 
 class EnhancedOnboardingScreen extends ConsumerStatefulWidget {
   const EnhancedOnboardingScreen({super.key});
@@ -134,7 +135,6 @@ class _EnhancedOnboardingScreenState
     setState(() => _isFinishing = true);
 
     final prefs = await SharedPreferences.getInstance();
-    await ref.read(onboardingProvider.notifier).complete();
 
     String? joined(String key) {
       final values = _answers[key];
@@ -153,8 +153,6 @@ class _EnhancedOnboardingScreenState
     );
     await prefs.setString('glowup_profile', jsonEncode(profile.toJson()));
 
-    if (!mounted) return;
-
     // Auto sign-in anonymously so the user can continue as a guest.
     // No login screen is shown — the anonymous UID becomes the single
     // source of truth for all user data.
@@ -169,11 +167,49 @@ class _EnhancedOnboardingScreenState
       debugPrint('[Onboarding] Anonymous sign-in failed: $e');
     }
 
-    // Routing is handled by app.dart's auth state stream: once the anonymous
-    // user is signed in, the app swaps to GlowAppShell automatically.
-    // If sign-in failed, onboarding is marked complete so AuthScreen shows
-    // (which offers "Continue as Guest").
+    // Generate the personalized AI plan BEFORE routing away from this
+    // screen. If we mark onboarding complete first, app.dart swaps to
+    // Home and this widget is disposed — the plan would never be created.
+    // Use a timeout so the user is never stuck on a spinner if the AI
+    // service is slow or unreachable.
+    try {
+      await ref
+          .read(planProvider.notifier)
+          .generatePlan(profile: profile)
+          .timeout(const Duration(seconds: 20));
+    } catch (e) {
+      debugPrint('[Onboarding] Could not generate plan: $e');
+    }
+
     if (!mounted) return;
+
+    // Mark onboarding complete LAST — this triggers app.dart to swap to
+    // the main Home experience where the generated plan is ready to view.
+    await ref.read(onboardingProvider.notifier).complete();
+  }
+
+  /// Skips onboarding entirely — no plan generation, no AI call.
+  /// Just marks onboarding complete and enters the app.
+  Future<void> _skip() async {
+    if (_isFinishing) return;
+    setState(() => _isFinishing = true);
+
+    // Save a minimal profile so the app has something to work with.
+    final prefs = await SharedPreferences.getInstance();
+    final profile = const GlowUserProfile();
+    await prefs.setString('glowup_profile', jsonEncode(profile.toJson()));
+
+    // Try anonymous sign-in (non-blocking — never block skip).
+    try {
+      await ref.read(authServiceProvider).signInAnonymously();
+    } catch (e) {
+      debugPrint('[Onboarding] Anonymous sign-in failed on skip: $e');
+    }
+
+    if (!mounted) return;
+
+    // Mark onboarding complete — app.dart swaps to Home.
+    await ref.read(onboardingProvider.notifier).complete();
   }
 
   /// Saves the onboarding profile to Firestore under the user's UID.
@@ -248,7 +284,7 @@ class _EnhancedOnboardingScreenState
                               ),
                             ),
                             TextButton(
-                              onPressed: _isFinishing ? null : _finish,
+                              onPressed: _isFinishing ? null : _skip,
                               child: const Text('Skip'),
                             ),
                           ],

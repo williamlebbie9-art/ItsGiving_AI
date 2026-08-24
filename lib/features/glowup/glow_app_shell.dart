@@ -1,12 +1,15 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/providers/app_providers.dart';
 import 'ai_coach_screen.dart';
 import 'ai_face_scan_screen.dart';
 import 'auth_screen.dart';
-import 'enhanced_onboarding_screen.dart';
 import 'feature_cards_screen.dart';
+import 'glow_models.dart';
 import 'glow_up_plan_screen.dart';
 import 'inspiration_screen.dart';
 import 'paywall_screen.dart';
@@ -319,8 +322,48 @@ class _TodayPlanCard extends ConsumerWidget {
   }
 }
 
-class _NoPlanCard extends StatelessWidget {
+class _NoPlanCard extends ConsumerStatefulWidget {
   const _NoPlanCard();
+
+  @override
+  ConsumerState<_NoPlanCard> createState() => _NoPlanCardState();
+}
+
+class _NoPlanCardState extends ConsumerState<_NoPlanCard> {
+  bool _creating = false;
+
+  /// Creates a plan directly from the saved onboarding profile —
+  /// no need to re-do onboarding.
+  Future<void> _createPlanNow() async {
+    if (_creating) return;
+    setState(() => _creating = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('glowup_profile');
+      GlowUserProfile profile = const GlowUserProfile();
+      if (raw != null && raw.isNotEmpty) {
+        try {
+          final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+          profile = GlowUserProfile.fromJson(map);
+        } catch (_) {}
+      }
+      final success = await ref
+          .read(planProvider.notifier)
+          .generatePlan(profile: profile);
+      if (!mounted) return;
+      if (!success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'We couldn\'t create your plan. Please try again in a moment.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -342,21 +385,23 @@ class _NoPlanCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Complete onboarding to get your personalized AI program with daily tasks, weekly goals, and progress tracking.',
+            'Create your personalized AI program with daily tasks, weekly goals, and progress tracking.',
           ),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const EnhancedOnboardingScreen(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.auto_awesome_rounded),
-              label: const Text('Create My Plan'),
+              onPressed: _creating ? null : _createPlanNow,
+              icon: _creating
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_awesome_rounded),
+              label: Text(
+                _creating ? 'Creating your plan...' : 'Create My Plan',
+              ),
             ),
           ),
         ],

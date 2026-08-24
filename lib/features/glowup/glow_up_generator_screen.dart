@@ -147,11 +147,21 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
   }
 
   /// Builds a structured 30-day plan and navigates to the plan screen.
+  /// If a plan was already created during onboarding, reuses it —
+  /// no extra AI call is needed.
   Future<void> _buildPlan() async {
     if (_selectedStyle == null || _buildingPlan) return;
     setState(() => _buildingPlan = true);
 
     try {
+      // If the plan was already generated during onboarding, reuse it
+      // instead of making another expensive AI call.
+      final existingPlan = ref.read(planProvider).plan;
+      if (existingPlan != null) {
+        _enterPlan();
+        return;
+      }
+
       // Load the user profile from SharedPreferences.
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString('glowup_profile');
@@ -173,21 +183,7 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
 
       if (!mounted) return;
       if (success) {
-        if (widget.isIntroFlow) {
-          // First-run intro flow: the paywall and auth screen were already
-          // shown after the introductory face scan. Mark the flow complete
-          // and enter the main Home experience.
-          await ref.read(userJourneyProvider.notifier).markIntroFlowCompleted();
-          if (!mounted) return;
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const GlowAppShell()),
-            (route) => false,
-          );
-        } else {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const GlowUpPlanScreen()));
-        }
+        _enterPlan();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -197,6 +193,25 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
       }
     } finally {
       if (mounted) setState(() => _buildingPlan = false);
+    }
+  }
+
+  /// Navigates to the plan (or Home in the intro flow) once a plan exists.
+  void _enterPlan() {
+    if (!mounted) return;
+    if (widget.isIntroFlow) {
+      // First-run intro flow: the paywall and auth screen were already
+      // shown after the introductory face scan. Mark the flow complete
+      // and enter the main Home experience.
+      ref.read(userJourneyProvider.notifier).markIntroFlowCompleted();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const GlowAppShell()),
+        (route) => false,
+      );
+    } else {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const GlowUpPlanScreen()));
     }
   }
 

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/providers/onboarding_provider.dart';
 import 'core/providers/user_journey_provider.dart';
-import 'features/glowup/ai_face_scan_intro_flow.dart';
 import 'features/glowup/enhanced_onboarding_screen.dart';
 import 'features/glowup/glow_app_shell.dart';
 
@@ -136,34 +135,10 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
       return const EnhancedOnboardingScreen();
     }
 
-    // 2. Intro flow — user has onboarded but not completed their
-    //    introductory face scan → plan → paywall journey.
-    if (!journey.introFlowCompleted) {
-      return const _IntroFlowGate();
-    }
-
-    // 3. Main app.
+    // 2. Main app. The plan is auto-generated during onboarding so the
+    //    user sees their personalized 30-day glow-up plan immediately.
+    //    The AI face scan is available from the dashboard quick actions.
     return const GlowAppShell();
-  }
-}
-
-/// Shows the intro flow (face scan → results → plan → paywall) for users
-/// who have completed onboarding but not yet finished their first scan.
-class _IntroFlowGate extends ConsumerStatefulWidget {
-  const _IntroFlowGate();
-
-  @override
-  ConsumerState<_IntroFlowGate> createState() => _IntroFlowGateState();
-}
-
-class _IntroFlowGateState extends ConsumerState<_IntroFlowGate> {
-  @override
-  Widget build(BuildContext context) {
-    // The intro flow is the AI Face Scan screen. From there the user
-    // progresses: scan → results → plan → paywall → Home.
-    // We use a Key so that if the user signs out and back in, the flow
-    // restarts cleanly.
-    return const AiFaceScanIntroFlow();
   }
 }
 

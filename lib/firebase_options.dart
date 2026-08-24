@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAW8oyp99OiS_lnMT-7a5eCKMQ7NiIow7g',
-    appId: '1:259251351524:android:a9e09f4f0c1e31229aa1f1',
+    appId: '1:259251351524:android:f530d8101c246e969aa1f1',
     messagingSenderId: '259251351524',
     projectId: 'decide-ai-89445',
     storageBucket: 'decide-ai-89445.firebasestorage.app',
@@ -59,7 +59,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBya3LDY5OlphLL0b84MBIctAR_mKroLuk',
-    appId: '1:259251351524:ios:03c99a44aee7db809aa1f1',
+    appId: '1:259251351524:ios:99cd20d0dcedacf39aa1f1',
     messagingSenderId: '259251351524',
     projectId: 'decide-ai-89445',
     storageBucket: 'decide-ai-89445.firebasestorage.app',

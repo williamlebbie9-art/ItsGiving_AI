@@ -81,22 +81,14 @@ class PlanNotifier extends StateNotifier<PlanState> {
 
   /// Generates a new personalized plan.
   ///
-  /// Enforces the free plan limit (1 plan) unless the user is premium.
-  /// Usage is only incremented AFTER a successful plan generation.
+  /// Works even without authentication — the plan service persists locally
+  /// using a local user ID fallback. Usage is only incremented AFTER a
+  /// successful plan generation, and only when the user is authenticated.
   Future<bool> generatePlan({
     required GlowUserProfile profile,
     String? faceScanSummary,
   }) async {
-    // Check auth + usage before making any expensive AI call.
-    final uid = _ref.read(authServiceProvider).currentUid;
-    if (uid == null) {
-      state = state.copyWith(
-        isGenerating: false,
-        error: 'Please sign in to create a glow-up plan.',
-      );
-      return false;
-    }
-
+    // Enforce the free plan limit (1 plan) unless the user is premium.
     final isPremium = _ref.read(subscriptionProvider).isPremium;
     final usage = _ref.read(usageProvider);
     if (!isPremium && usage.planCount >= 1) {
@@ -115,7 +107,10 @@ class PlanNotifier extends StateNotifier<PlanState> {
         faceScanSummary: faceScanSummary,
       );
       // Only increment usage AFTER a successful plan generation.
-      await _ref.read(usageProvider.notifier).incrementPlan(uid);
+      final uid = _ref.read(authServiceProvider).currentUid;
+      if (uid != null) {
+        await _ref.read(usageProvider.notifier).incrementPlan(uid);
+      }
       state = state.copyWith(plan: plan, isGenerating: false);
       return true;
     } catch (e) {

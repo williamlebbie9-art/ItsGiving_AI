@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -134,6 +135,9 @@ class PlanService {
 
   /// Generates a personalized 30-day plan using the user's onboarding
   /// profile and optional face-scan summary. Returns structured data.
+  ///
+  /// If the AI call fails for any reason, a structured fallback plan is
+  /// returned so the user ALWAYS has a plan — never an empty state.
   Future<GlowUpPlan> generatePlan({
     required GlowUserProfile profile,
     String? faceScanSummary,
@@ -141,73 +145,85 @@ class PlanService {
     final userId = await _getUserId();
     final planId = const Uuid().v4();
 
-    final profileContext = _buildProfileContext(profile);
-    final faceContext = faceScanSummary != null && faceScanSummary.isNotEmpty
-        ? 'Face scan analysis: $faceScanSummary\n'
-        : '';
+    try {
+      final profileContext = _buildProfileContext(profile);
+      final faceContext = faceScanSummary != null && faceScanSummary.isNotEmpty
+          ? 'Face scan analysis: $faceScanSummary\n'
+          : '';
 
-    final prompt =
-        'Create a personalized 30-day glow-up program for this user.\n'
-        '$profileContext'
-        '$faceContext'
-        '\n'
-        'Return STRICT JSON with this exact structure:\n'
-        '{\n'
-        '  "overview": "2-3 sentence summary of the program",\n'
-        '  "goals": ["goal 1", "goal 2", "goal 3"],\n'
-        '  "weeks": [\n'
-        '    {\n'
-        '      "weekNumber": 1,\n'
-        '      "title": "Foundation",\n'
-        '      "goal": "Clear weekly objective",\n'
-        '      "focusAreas": ["Skin", "Hair", "Fitness", "Style", "Lifestyle"],\n'
-        '      "days": [\n'
-        '        {\n'
-        '          "dayNumber": 1,\n'
-        '          "tasks": [\n'
-        '            {"id": "w1d1t1", "title": "Morning skincare routine", "category": "Morning", "description": "Cleanse, tone, moisturize, SPF"},\n'
-        '            {"id": "w1d1t2", "title": "Drink your hydration target", "category": "Lifestyle", "description": "2L of water"},\n'
-        '            {"id": "w1d1t3", "title": "20-minute movement", "category": "Fitness", "description": "Walk, stretch, or workout"},\n'
-        '            {"id": "w1d1t4", "title": "Grooming task", "category": "Appearance", "description": "Brows, hair, or grooming"},\n'
-        '            {"id": "w1d1t5", "title": "5-minute confidence exercise", "category": "Mindset", "description": "Affirmation or journaling"}\n'
-        '          ]\n'
-        '        }\n'
-        '      ]\n'
-        '    }\n'
-        '  ]\n'
-        '}\n'
-        '\n'
-        'RULES:\n'
-        '- 4 weeks: Week 1 "Foundation" (days 1-7), Week 2 "Build" (days 8-14), '
-        'Week 3 "Elevate" (days 15-21), Week 4 "Refine" (days 22-30).\n'
-        '- Each week has exactly 7 days (last week has 9 days: 22-30).\n'
-        '- Each day has 4-6 realistic tasks across Morning, Lifestyle, Fitness, Appearance, Mindset.\n'
-        '- Tasks must be personalized to the user\'s goal, skin type, exercise level, sleep, vibe, and lifestyle.\n'
-        '- Tasks must be realistic and not overwhelming.\n'
-        '- Include natural remedy tasks where relevant — such as natural skincare ingredients '
-        '(aloe vera, green tea, honey, oatmeal, rose water, jojoba oil, coconut oil, shea butter), '
-        'herbal teas (chamomile, green tea, peppermint, ginger), dietary suggestions '
-        '(antioxidant-rich foods, omega-3s, vitamin C, hydration), lifestyle remedies '
-        '(sleep, stress reduction, facial massage, dry brushing), and natural hair care '
-        '(coconut oil masks, aloe vera gel, rosemary rinse).\n'
-        '- Always frame natural remedies as gentle, supportive suggestions — never as medical treatment '
-        'or a replacement for professional care.\n'
-        '- Use unique task IDs like w1d1t1, w1d2t1, w2d1t1, etc.\n'
-        '- Do NOT return markdown, code fences, or extra text. Return ONLY valid JSON.';
+      final prompt =
+          'Create a personalized 30-day glow-up program for this user.\n'
+          '$profileContext'
+          '$faceContext'
+          '\n'
+          'Return STRICT JSON with this exact structure:\n'
+          '{\n'
+          '  "overview": "2-3 sentence summary of the program",\n'
+          '  "goals": ["goal 1", "goal 2", "goal 3"],\n'
+          '  "weeks": [\n'
+          '    {\n'
+          '      "weekNumber": 1,\n'
+          '      "title": "Foundation",\n'
+          '      "goal": "Clear weekly objective",\n'
+          '      "focusAreas": ["Skin", "Hair", "Fitness", "Style", "Lifestyle"],\n'
+          '      "days": [\n'
+          '        {\n'
+          '          "dayNumber": 1,\n'
+          '          "tasks": [\n'
+          '            {"id": "w1d1t1", "title": "Morning skincare routine", "category": "Morning", "description": "Cleanse, tone, moisturize, SPF"},\n'
+          '            {"id": "w1d1t2", "title": "Drink your hydration target", "category": "Lifestyle", "description": "2L of water"},\n'
+          '            {"id": "w1d1t3", "title": "20-minute movement", "category": "Fitness", "description": "Walk, stretch, or workout"},\n'
+          '            {"id": "w1d1t4", "title": "Grooming task", "category": "Appearance", "description": "Brows, hair, or grooming"},\n'
+          '            {"id": "w1d1t5", "title": "5-minute confidence exercise", "category": "Mindset", "description": "Affirmation or journaling"}\n'
+          '          ]\n'
+          '        }\n'
+          '      ]\n'
+          '    }\n'
+          '  ]\n'
+          '}\n'
+          '\n'
+          'RULES:\n'
+          '- 4 weeks: Week 1 "Foundation" (days 1-7), Week 2 "Build" (days 8-14), '
+          'Week 3 "Elevate" (days 15-21), Week 4 "Refine" (days 22-30).\n'
+          '- Each week has exactly 7 days (last week has 9 days: 22-30).\n'
+          '- Each day has 4-6 realistic tasks across Morning, Lifestyle, Fitness, Appearance, Mindset.\n'
+          '- Tasks must be personalized to the user\'s goal, skin type, exercise level, sleep, vibe, and lifestyle.\n'
+          '- Tasks must be realistic and not overwhelming.\n'
+          '- Include natural remedy tasks where relevant — such as natural skincare ingredients '
+          '(aloe vera, green tea, honey, oatmeal, rose water, jojoba oil, coconut oil, shea butter), '
+          'herbal teas (chamomile, green tea, peppermint, ginger), dietary suggestions '
+          '(antioxidant-rich foods, omega-3s, vitamin C, hydration), lifestyle remedies '
+          '(sleep, stress reduction, facial massage, dry brushing), and natural hair care '
+          '(coconut oil masks, aloe vera gel, rosemary rinse).\n'
+          '- Always frame natural remedies as gentle, supportive suggestions — never as medical treatment '
+          'or a replacement for professional care.\n'
+          '- Use unique task IDs like w1d1t1, w1d2t1, w2d1t1, etc.\n'
+          '- Do NOT return markdown, code fences, or extra text. Return ONLY valid JSON.';
 
-    final result = await _engine.decide(
-      DecisionRequest(query: prompt, manualCategory: DecisionCategory.glowup),
-    );
+      final result = await _engine.decide(
+        DecisionRequest(query: prompt, manualCategory: DecisionCategory.glowup),
+      );
 
-    final plan = _parsePlanFromResult(
-      result: result,
-      planId: planId,
-      userId: userId,
-      profile: profile,
-    );
+      final plan = _parsePlanFromResult(
+        result: result,
+        planId: planId,
+        userId: userId,
+        profile: profile,
+      );
 
-    await savePlan(plan);
-    return plan;
+      await savePlan(plan);
+      return plan;
+    } catch (e) {
+      // AI is unavailable — still give the user a structured plan.
+      debugPrint('[PlanService] AI plan generation failed, using fallback: $e');
+      final fallback = _buildFallbackPlan(
+        planId: planId,
+        userId: userId,
+        profile: profile,
+      );
+      await savePlan(fallback);
+      return fallback;
+    }
   }
 
   GlowUpPlan _parsePlanFromResult({
