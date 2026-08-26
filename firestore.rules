@@ -12,9 +12,17 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
 
-      // All subcollections inherit the parent rule.
-      match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+      // Usage is written only by the Cloud Functions Admin SDK. Clients may
+      // read their current allowance but cannot reset or inflate counters.
+      match /usage/{document=**} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
+      }
+
+      // User-owned data excluding the server-managed usage collection.
+      match /{collection}/{document=**} {
+        allow read, write: if request.auth != null &&
+          request.auth.uid == uid && collection != 'usage';
       }
     }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'plan_models.dart';
+import 'plan_provider.dart';
 import 'plan_service.dart';
 
 /// Shows the user's current plan status and their archived plan history.
@@ -77,7 +78,13 @@ class _PlanHistoryScreenState extends ConsumerState<PlanHistoryScreen> {
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (_, index) {
                   final plan = _history[index];
-                  return _HistoryCard(plan: plan);
+                  return _HistoryCard(
+                    plan: plan,
+                    onOpen: () async {
+                      await ref.read(planProvider.notifier).activatePlan(plan);
+                      if (context.mounted) Navigator.of(context).pop();
+                    },
+                  );
                 },
               ),
       ),
@@ -86,9 +93,10 @@ class _PlanHistoryScreenState extends ConsumerState<PlanHistoryScreen> {
 }
 
 class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.plan});
+  const _HistoryCard({required this.plan, required this.onOpen});
 
   final GlowUpPlan plan;
+  final Future<void> Function() onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +161,15 @@ class _HistoryCard extends StatelessWidget {
           Text(
             isComplete ? 'Completed $progress%' : '$progress% complete',
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onOpen,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Open this plan'),
+            ),
           ),
         ],
       ),

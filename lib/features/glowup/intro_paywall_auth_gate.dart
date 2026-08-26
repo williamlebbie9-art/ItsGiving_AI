@@ -12,7 +12,7 @@ import 'paywall_screen.dart';
 ///
 /// Order: paywall → auth screen → return to caller so the user can continue
 /// into the personalized glow-up journey.
-Future<void> showIntroPaywallAuthGate(
+Future<bool> showIntroPaywallAuthGate(
   BuildContext context,
   WidgetRef ref,
 ) async {
@@ -29,11 +29,12 @@ Future<void> showIntroPaywallAuthGate(
     );
   }
 
-  if (!context.mounted) return;
+  if (!context.mounted) return false;
 
   // Always show the auth screen after the paywall so users can create an
   // account to save their progress (or continue as a guest).
-  await Navigator.of(
+  final completed = await Navigator.of(
     context,
-  ).push(MaterialPageRoute(builder: (_) => const AuthScreen()));
+  ).push<bool>(MaterialPageRoute(builder: (_) => const AuthScreen()));
+  return completed == true;
 }

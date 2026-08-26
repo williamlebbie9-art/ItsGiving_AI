@@ -87,6 +87,9 @@ class PlanNotifier extends StateNotifier<PlanState> {
   Future<bool> generatePlan({
     required GlowUserProfile profile,
     String? faceScanSummary,
+    String? styleId,
+    String? styleName,
+    String? generatedImagePath,
   }) async {
     // Enforce the free plan limit (1 plan) unless the user is premium.
     final isPremium = _ref.read(subscriptionProvider).isPremium;
@@ -105,11 +108,14 @@ class PlanNotifier extends StateNotifier<PlanState> {
       final plan = await _service.generatePlan(
         profile: profile,
         faceScanSummary: faceScanSummary,
+        styleId: styleId,
+        styleName: styleName,
+        generatedImagePath: generatedImagePath,
       );
-      // Only increment usage AFTER a successful plan generation.
+      // The backend owns usage accounting. Refresh its count for the UI.
       final uid = _ref.read(authServiceProvider).currentUid;
       if (uid != null) {
-        await _ref.read(usageProvider.notifier).incrementPlan(uid);
+        await _ref.read(usageProvider.notifier).load(uid);
       }
       state = state.copyWith(plan: plan, isGenerating: false);
       return true;
@@ -168,6 +174,11 @@ class PlanNotifier extends StateNotifier<PlanState> {
   Future<void> archiveCurrentPlan() async {
     await _service.archiveCurrentPlan();
     state = state.copyWith(plan: null);
+  }
+
+  Future<void> activatePlan(GlowUpPlan plan) async {
+    final active = await _service.activatePlan(plan);
+    state = state.copyWith(plan: active, clearError: true);
   }
 
   void clearError() {

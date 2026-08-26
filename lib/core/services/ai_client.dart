@@ -32,145 +32,51 @@ class AiClient {
         request: request,
       );
     }
-    if (provider == 'openai') {
-      return await _callOpenAi(
-        category: category,
-        prompt: prompt,
-        request: request,
-      );
-    }
-    if (provider == 'gemini') {
-      return await _callGemini(
-        category: category,
-        prompt: prompt,
-        request: request,
-      );
-    }
 
-    // No silent mock fallback. Surface the misconfiguration so the real
-    // AI integration is never masked by a fake answer.
+    // Provider API keys must never be distributed inside a mobile app.
     throw StateError(
-      'AI_PROVIDER is not configured. Set AI_PROVIDER=firebase (or openai/gemini) '
-      'in .env. Current value: "${provider.isEmpty ? '(empty)' : provider}".',
+      'AI_PROVIDER must be firebase. Current value: '
+      '"${provider.isEmpty ? '(empty)' : provider}".',
     );
   }
 
-  Future<DecisionResult> _callOpenAi({
-    required DecisionCategory category,
-    required String prompt,
-    required DecisionRequest request,
-  }) async {
-    final apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
-    if (apiKey.isEmpty) {
-      throw Exception('OPENAI_API_KEY is missing');
+  /// Requests the dedicated plan schema. Unlike coach/scan responses this
+  /// preserves the full plan object instead of forcing it into DecisionResult.
+  Future<Map<String, dynamic>> generatePlan({required String prompt}) async {
+    final provider = (dotenv.env['AI_PROVIDER'] ?? '').toLowerCase();
+    if (provider != 'firebase') {
+      throw StateError('AI_PROVIDER must be firebase for plan generation.');
     }
 
-    final model = dotenv.env['OPENAI_MODEL'] ?? 'gpt-4o-mini';
-    final uri = Uri.parse('https://api.openai.com/v1/chat/completions');
-
-    final userContent = await _buildOpenAiUserContent(
-      prompt: prompt,
-      imagePaths: request.imagePaths,
-    );
+    final defaultLocalUrl = Platform.isAndroid
+        ? 'http://10.0.2.2:5001/decide-ai-89445/us-central1/generateDecision'
+        : 'http://127.0.0.1:5001/decide-ai-89445/us-central1/generateDecision';
+    final functionUrl =
+        dotenv.env['FIREBASE_FUNCTIONS_URL']?.trim().isNotEmpty == true
+        ? dotenv.env['FIREBASE_FUNCTIONS_URL']!.trim()
+        : defaultLocalUrl;
+    final idToken = await _getIdToken();
 
     final response = await http
         .post(
-          uri,
+          Uri.parse(functionUrl),
           headers: {
-            'Authorization': 'Bearer $apiKey',
             'Content-Type': 'application/json',
+            if (idToken != null) 'Authorization': 'Bearer $idToken',
           },
-          body: jsonEncode({
-            'model': model,
-            'messages': [
-              {'role': 'user', 'content': userContent},
-            ],
-            'response_format': {'type': 'json_object'},
-            'temperature': 0.4,
-          }),
+          body: jsonEncode({'prompt': prompt, 'operation': 'plan'}),
         )
-        .timeout(
-          const Duration(seconds: 20),
-          onTimeout: () => throw TimeoutException(
-            'OpenAI request timed out',
-            const Duration(seconds: 20),
-          ),
-        );
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode < 200 || response.statusCode > 299) {
-      throw Exception('OpenAI request failed: ${response.statusCode}');
+      throw Exception('Plan request failed: ${response.statusCode}');
     }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final choices = data['choices'] as List<dynamic>? ?? const [];
-    final content = choices.isNotEmpty
-        ? (choices.first as Map<String, dynamic>)['message']['content']
-              .toString()
-        : '{}';
-    final parsed = jsonDecode(content) as Map<String, dynamic>;
-    parsed['category'] = parsed['category'] ?? category.value;
-    return DecisionResult.fromJson(parsed);
-  }
-
-  Future<DecisionResult> _callGemini({
-    required DecisionCategory category,
-    required String prompt,
-    required DecisionRequest request,
-  }) async {
-    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-    if (apiKey.isEmpty) {
-      throw Exception('GEMINI_API_KEY is missing');
+    final payload = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final plan = payload['plan'];
+    if (plan is! Map) {
+      throw const FormatException('Plan response is missing a plan object.');
     }
-
-    final model = dotenv.env['GEMINI_MODEL'] ?? 'gemini-1.5-flash';
-    final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey',
-    );
-
-    final parts = await _buildGeminiParts(
-      prompt: prompt,
-      imagePaths: request.imagePaths,
-    );
-
-    final response = await http
-        .post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'generationConfig': {
-              'temperature': 0.4,
-              'responseMimeType': 'application/json',
-            },
-            'contents': [
-              {'role': 'user', 'parts': parts},
-            ],
-          }),
-        )
-        .timeout(
-          const Duration(seconds: 20),
-          onTimeout: () => throw TimeoutException(
-            'Gemini request timed out',
-            const Duration(seconds: 20),
-          ),
-        );
-
-    if (response.statusCode < 200 || response.statusCode > 299) {
-      throw Exception('Gemini request failed: ${response.statusCode}');
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final candidates = data['candidates'] as List<dynamic>? ?? const [];
-    final text = candidates.isNotEmpty
-        ? ((((candidates.first as Map<String, dynamic>)['content']
-                              as Map<String, dynamic>)['parts']
-                          as List<dynamic>)
-                      .first
-                  as Map<String, dynamic>)['text']
-              .toString()
-        : '{}';
-    final parsed = jsonDecode(_stripJsonFence(text)) as Map<String, dynamic>;
-    parsed['category'] = parsed['category'] ?? category.value;
-    return DecisionResult.fromJson(parsed);
+    return Map<String, dynamic>.from(plan);
   }
 
   Future<DecisionResult> _callFirebaseFunction({
@@ -337,56 +243,6 @@ class AiClient {
     return images;
   }
 
-  Future<dynamic> _buildOpenAiUserContent({
-    required String prompt,
-    required List<String> imagePaths,
-  }) async {
-    if (imagePaths.isEmpty) {
-      return prompt;
-    }
-
-    final content = <Map<String, dynamic>>[
-      {'type': 'text', 'text': prompt},
-    ];
-
-    for (final path in imagePaths.take(4)) {
-      final bytes = await _readImage(path);
-      if (bytes == null) {
-        continue;
-      }
-      final base64Image = base64Encode(bytes);
-      final mime = _mimeFromPath(path);
-      content.add({
-        'type': 'image_url',
-        'image_url': {'url': 'data:$mime;base64,$base64Image'},
-      });
-    }
-    return content;
-  }
-
-  Future<List<Map<String, dynamic>>> _buildGeminiParts({
-    required String prompt,
-    required List<String> imagePaths,
-  }) async {
-    final parts = <Map<String, dynamic>>[
-      {'text': prompt},
-    ];
-
-    for (final path in imagePaths.take(4)) {
-      final bytes = await _readImage(path);
-      if (bytes == null) {
-        continue;
-      }
-      parts.add({
-        'inline_data': {
-          'mime_type': _mimeFromPath(path),
-          'data': base64Encode(bytes),
-        },
-      });
-    }
-    return parts;
-  }
-
   Future<Uint8List?> _readImage(String path) async {
     try {
       return await File(path).readAsBytes();
@@ -406,19 +262,4 @@ class AiClient {
     return 'image/jpeg';
   }
 
-  String _stripJsonFence(String raw) {
-    final trimmed = raw.trim();
-    if (!trimmed.startsWith('```')) {
-      return trimmed;
-    }
-
-    final lines = trimmed.split('\n').toList();
-    if (lines.isNotEmpty && lines.first.startsWith('```')) {
-      lines.removeAt(0);
-    }
-    if (lines.isNotEmpty && lines.last.trim() == '```') {
-      lines.removeLast();
-    }
-    return lines.join('\n').trim();
-  }
 }

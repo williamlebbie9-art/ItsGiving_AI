@@ -6,17 +6,16 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/models/decision_models.dart';
-import '../../core/services/decision_engine.dart';
+import '../../core/services/ai_client.dart';
 import 'glow_models.dart';
 import 'plan_models.dart';
 
 /// Manages the user's 30-day glow-up plan: generation, persistence,
 /// progress tracking, and retrieval.
 class PlanService {
-  PlanService({DecisionEngine? engine}) : _engine = engine ?? DecisionEngine();
+  PlanService({AiClient? client}) : _client = client ?? const AiClient();
 
-  final DecisionEngine _engine;
+  final AiClient _client;
   static const _localPlanKey = 'glowup_current_plan';
   static const _localPlanHistoryKey = 'glowup_plan_history';
   static const _localUserIdKey = 'glowup_user_id';
@@ -141,6 +140,9 @@ class PlanService {
   Future<GlowUpPlan> generatePlan({
     required GlowUserProfile profile,
     String? faceScanSummary,
+    String? styleId,
+    String? styleName,
+    String? generatedImagePath,
   }) async {
     final userId = await _getUserId();
     final planId = const Uuid().v4();
@@ -150,11 +152,15 @@ class PlanService {
       final faceContext = faceScanSummary != null && faceScanSummary.isNotEmpty
           ? 'Face scan analysis: $faceScanSummary\n'
           : '';
+      final styleContext = styleName != null && styleName.isNotEmpty
+          ? 'Chosen style direction: $styleName. Make grooming, hair, makeup, and outfit tasks support this aesthetic.\n'
+          : '';
 
       final prompt =
           'Create a personalized 30-day glow-up program for this user.\n'
           '$profileContext'
           '$faceContext'
+          '$styleContext'
           '\n'
           'Return STRICT JSON with this exact structure:\n'
           '{\n'
@@ -200,15 +206,16 @@ class PlanService {
           '- Use unique task IDs like w1d1t1, w1d2t1, w2d1t1, etc.\n'
           '- Do NOT return markdown, code fences, or extra text. Return ONLY valid JSON.';
 
-      final result = await _engine.decide(
-        DecisionRequest(query: prompt, manualCategory: DecisionCategory.glowup),
-      );
-
-      final plan = _parsePlanFromResult(
-        result: result,
+      final generatedPlan = await _client.generatePlan(prompt: prompt);
+      final plan = _parsePlanJson(
+        json: generatedPlan,
         planId: planId,
         userId: userId,
         profile: profile,
+        styleId: styleId,
+        styleName: styleName,
+        faceScanSummary: faceScanSummary,
+        generatedImagePath: generatedImagePath,
       );
 
       await savePlan(plan);
@@ -220,66 +227,112 @@ class PlanService {
         planId: planId,
         userId: userId,
         profile: profile,
+        styleId: styleId,
+        styleName: styleName,
+        faceScanSummary: faceScanSummary,
+        generatedImagePath: generatedImagePath,
       );
       await savePlan(fallback);
       return fallback;
     }
   }
 
-  GlowUpPlan _parsePlanFromResult({
-    required DecisionResult result,
+  GlowUpPlan _parsePlanJson({
+    required Map<String, dynamic> json,
     required String planId,
     required String userId,
     required GlowUserProfile profile,
+    String? styleId,
+    String? styleName,
+    String? faceScanSummary,
+    String? generatedImagePath,
   }) {
-    final json = _extractJson(result.reasoning);
-    if (json != null) {
-      try {
-        final weeks = _parseWeeks(json['weeks']);
-        if (weeks.isNotEmpty) {
-          return GlowUpPlan(
-            planId: planId,
-            userId: userId,
-            createdAt: DateTime.now(),
-            weeks: weeks,
-            overview: (json['overview'] ?? '').toString(),
-            goals: (json['goals'] as List<dynamic>? ?? const [])
-                .map((g) => g.toString())
-                .toList(),
-          );
-        }
-      } catch (_) {}
+    try {
+      final weeks = _parseWeeks(json['weeks']);
+      if (weeks.isNotEmpty) {
+        return GlowUpPlan(
+          planId: planId,
+          userId: userId,
+          createdAt: DateTime.now(),
+          weeks: weeks,
+          overview: (json['overview'] ?? '').toString(),
+          goals: (json['goals'] as List<dynamic>? ?? const [])
+              .map((g) => g.toString())
+              .toList(),
+          styleId: styleId,
+          styleName: styleName,
+          faceScanSummary: faceScanSummary,
+          generatedImagePath: generatedImagePath,
+        );
+      }
+    } catch (_) {
+      // A malformed provider response falls back to a usable local plan.
     }
-    return _buildFallbackPlan(planId: planId, userId: userId, profile: profile);
+    return _buildFallbackPlan(
+      planId: planId,
+      userId: userId,
+      profile: profile,
+      styleId: styleId,
+      styleName: styleName,
+      faceScanSummary: faceScanSummary,
+      generatedImagePath: generatedImagePath,
+    );
   }
 
-  Map<String, dynamic>? _extractJson(String raw) {
-    if (raw.isEmpty) return null;
-    final trimmed = raw.trim();
+  /// Archives a specific plan (from history) without changing the active plan.
+  /// Used by the "Archive" action on past-plan cards.
+  Future<void> archivePlan(GlowUpPlan plan) async {
+    final prefs = await SharedPreferences.getInstance();
+    final historyRaw = prefs.getString(_localPlanHistoryKey) ?? '[]';
+    final history = (jsonDecode(historyRaw) as List<dynamic>? ?? const [])
+        .map(
+          (entry) =>
+              GlowUpPlan.fromJson(Map<String, dynamic>.from(entry as Map)),
+        )
+        .where((p) => p.planId != plan.planId)
+        .toList();
+    final archived = plan.copyWith(status: 'archived');
+    history.insert(0, archived);
+    await prefs.setString(
+      _localPlanHistoryKey,
+      jsonEncode(history.take(10).map((p) => p.toJson()).toList()),
+    );
+
     try {
-      final decoded = jsonDecode(trimmed);
-      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      final userId = await _getUserId();
+      final db = FirebaseDatabase.instance;
+      await db
+          .ref('glowup_plans/$userId/history/${plan.planId}')
+          .set(archived.toJson())
+          .timeout(const Duration(seconds: 8));
     } catch (_) {}
+  }
 
-    final fenceMatch = RegExp(
-      r'```(?:json)?\s*([\s\S]*?)```',
-    ).firstMatch(trimmed);
-    if (fenceMatch != null) {
-      try {
-        final decoded = jsonDecode(fenceMatch.group(1)!.trim());
-        if (decoded is Map) return Map<String, dynamic>.from(decoded);
-      } catch (_) {}
-    }
+  /// Makes an archived plan the active plan. The prior active plan is kept in
+  /// history, so users can safely switch between their saved journeys.
+  Future<GlowUpPlan> activatePlan(GlowUpPlan selected) async {
+    final current = await loadCurrentPlan();
+    final prefs = await SharedPreferences.getInstance();
+    final historyRaw = prefs.getString(_localPlanHistoryKey) ?? '[]';
+    final history = (jsonDecode(historyRaw) as List<dynamic>? ?? const [])
+        .map(
+          (entry) =>
+              GlowUpPlan.fromJson(Map<String, dynamic>.from(entry as Map)),
+        )
+        .where((plan) => plan.planId != selected.planId)
+        .toList();
 
-    final start = trimmed.indexOf('{');
-    final end = trimmed.lastIndexOf('}');
-    if (start >= 0 && end > start) {
-      try {
-        final decoded = jsonDecode(trimmed.substring(start, end + 1));
-        if (decoded is Map) return Map<String, dynamic>.from(decoded);
-      } catch (_) {}
+    if (current != null && current.planId != selected.planId) {
+      history.insert(0, current.copyWith(status: 'archived'));
     }
-    return null;
+    await prefs.setString(
+      _localPlanHistoryKey,
+      jsonEncode(history.take(10).map((plan) => plan.toJson()).toList()),
+    );
+
+    final active = selected.copyWith(status: 'active');
+    await savePlan(active);
+    return active;
   }
 
   List<PlanWeek> _parseWeeks(dynamic weeksRaw) {
@@ -354,6 +407,10 @@ class PlanService {
     required String planId,
     required String userId,
     required GlowUserProfile profile,
+    String? styleId,
+    String? styleName,
+    String? faceScanSummary,
+    String? generatedImagePath,
   }) {
     final goal = profile.goal ?? 'Complete transformation';
     final skinType = profile.skinType ?? 'Combination';
@@ -435,8 +492,12 @@ class PlanService {
       weeks: weeks,
       overview:
           'A personalized 30-day glow-up program built around your $goal goal, '
-          '$vibe aesthetic, and $lifestyle lifestyle.',
+          '${styleName ?? vibe} aesthetic, and $lifestyle lifestyle.',
       goals: [goal, 'Build lasting confidence', 'Create consistent habits'],
+      styleId: styleId,
+      styleName: styleName,
+      faceScanSummary: faceScanSummary,
+      generatedImagePath: generatedImagePath,
     );
   }
 

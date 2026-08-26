@@ -79,12 +79,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     try {
       final current = ref.read(authServiceProvider).currentUser;
       if (current != null && current.isAnonymous) {
-        await linkAction();
+        await linkAction().timeout(const Duration(seconds: 20));
       } else {
-        await signInAction();
+        await signInAction().timeout(const Duration(seconds: 20));
       }
-      // On success, the auth state stream in app.dart will route to the app.
-      // No navigation needed here.
+      if (!mounted) return;
+      // The intro gate awaits this route; close it immediately on success so
+      // the user can continue instead of remaining on a loading auth screen.
+      Navigator.of(context).pop(true);
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -109,8 +111,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       _error = null;
     });
     try {
-      await ref.read(authServiceProvider).signInAnonymously();
-      // Auth stream in app.dart will route to the main shell.
+      await ref
+          .read(authServiceProvider)
+          .signInAnonymously()
+          .timeout(const Duration(seconds: 12));
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       setState(() {

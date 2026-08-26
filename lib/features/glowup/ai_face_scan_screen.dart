@@ -45,7 +45,12 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
   bool _requestLocked = false;
 
   Future<void> _pick(ImageSource source) async {
-    final image = await _picker.pickImage(source: source, imageQuality: 82);
+    final image = await _picker.pickImage(
+      source: source,
+      imageQuality: 70,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    );
     if (image != null) setState(() => _image = image);
   }
 
@@ -94,7 +99,9 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
               'face shape and styling compatibility, hairstyle compatibility, brow styling, '
               'makeup/styling opportunities, overall grooming, facial proportions for styling purposes, '
               'and wellness habits that affect glow. '
-              'Give a glow score out of 100 and specific, supportive recommendations. '
+              'Provide specific, supportive recommendations. '
+              'Do NOT give a numeric score, rating, or rank out of 100 — this is a private '
+              'journey, not a beauty contest. '
               'Use encouraging language like "Here\'s what you can enhance" — never judge or rank. '
               'Do NOT mention prices, products to buy, or comparing Product A vs Product B. '
               'When relevant, also suggest natural remedies to support the user\'s glow — '
@@ -111,10 +118,11 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
         ),
       );
 
-      // Only increment usage AFTER a successful AI call.
+      // The Cloud Function is the quota authority. Reload the count instead
+      // of incrementing a successful request a second time on the client.
       final uid = ref.read(authServiceProvider).currentUid;
       if (uid != null) {
-        await ref.read(usageProvider.notifier).incrementFaceScan(uid);
+        await ref.read(usageProvider.notifier).load(uid);
       }
 
       final summary = result.reasoning.isNotEmpty
@@ -154,7 +162,8 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
   Future<void> _skipScan() async {
     if (widget.isIntroFlow) {
       // Show the paywall then the auth screen before entering the app.
-      await showIntroPaywallAuthGate(context, ref);
+      final completedGate = await showIntroPaywallAuthGate(context, ref);
+      if (!completedGate) return;
       if (!mounted) return;
 
       await ref.read(userJourneyProvider.notifier).markIntroFlowCompleted();
@@ -196,7 +205,8 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
     // After the introductory scan, show the paywall then the auth screen
     // BEFORE the user continues to the glow-up generator / plan builder.
     if (widget.isIntroFlow) {
-      await showIntroPaywallAuthGate(context, ref);
+      final completedGate = await showIntroPaywallAuthGate(context, ref);
+      if (!completedGate) return;
       if (!mounted) return;
     }
 

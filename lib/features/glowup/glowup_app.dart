@@ -197,9 +197,8 @@ class _GlowOnboardingScreenState extends ConsumerState<GlowOnboardingScreen> {
                             return ChoiceChip(
                               label: Text(option),
                               selected: selected,
-                              onSelected: (_) => setState(
-                                () => _answers[step.field] = option,
-                              ),
+                              onSelected: (_) =>
+                                  setState(() => _answers[step.field] = option),
                             );
                           }).toList(),
                         ),
@@ -324,8 +323,12 @@ class GlowHomeScreen extends StatelessWidget {
                 children: [
                   const SectionTitle('Today’s glow tasks'),
                   const SizedBox(height: 12),
-                  ...['AM cleanse + SPF', '2L water', '20 min walk', 'No-phone wind down']
-                      .map((task) => GlowChecklistTile(id: task, title: task)),
+                  ...[
+                    'AM cleanse + SPF',
+                    '2L water',
+                    '20 min walk',
+                    'No-phone wind down',
+                  ].map((task) => GlowChecklistTile(id: task, title: task)),
                 ],
               ),
             ),
@@ -376,9 +379,9 @@ class GlowDashboardScreen extends StatelessWidget {
               children: [
                 Text(
                   'Key Metrics',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const Spacer(),
                 TextButton(onPressed: () {}, child: const Text('View All')),
@@ -439,7 +442,8 @@ class _FaceScanScreenState extends ConsumerState<FaceScanScreen> {
           children: [
             const ScreenHeading(
               title: 'AI Face Scan',
-              subtitle: 'Analyze skin, symmetry, brows, hair fit, smile, and glow potential.',
+              subtitle:
+                  'Analyze skin, symmetry, brows, hair fit, smile, and glow potential.',
             ),
             const SizedBox(height: 18),
             GlassCard(
@@ -529,7 +533,8 @@ class GlowResultsScreen extends ConsumerWidget {
           children: [
             const ScreenHeading(
               title: 'Your Glow-Up Previews',
-              subtitle: 'Pick a realistic direction and we’ll build your roadmap.',
+              subtitle:
+                  'Pick a realistic direction and we’ll build your roadmap.',
             ),
             const SizedBox(height: 16),
             ...glowLooks.map(
@@ -565,7 +570,9 @@ class RoadmapScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
           children: [
             ScreenHeading(
-              title: look == null ? 'Personalized Roadmap' : '${look.name} Roadmap',
+              title: look == null
+                  ? 'Personalized Roadmap'
+                  : '${look.name} Roadmap',
               subtitle:
                   'Interactive rituals across skincare, fitness, lifestyle, nutrition, sleep, hair, fashion, and confidence.',
             ),
@@ -609,7 +616,8 @@ class ProgressScreen extends StatelessWidget {
           children: [
             const ScreenHeading(
               title: 'Progress Studio',
-              subtitle: 'Track selfies, compare changes, and celebrate consistency.',
+              subtitle:
+                  'Track selfies, compare changes, and celebrate consistency.',
             ),
             const SizedBox(height: 16),
             const ComparisonCard(),
@@ -721,7 +729,8 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
               padding: EdgeInsets.all(18),
               child: ScreenHeading(
                 title: 'AI Coach',
-                subtitle: 'Skincare, fashion, confidence, hair, nutrition, fitness, and glow-up advice.',
+                subtitle:
+                    'Skincare, fashion, confidence, hair, nutrition, fitness, and glow-up advice.',
               ),
             ),
             Expanded(
@@ -734,7 +743,10 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 100),
               child: GlassCard(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -774,13 +786,23 @@ class CommunityScreen extends StatelessWidget {
           children: [
             const ScreenHeading(
               title: 'Community Inspiration',
-              subtitle: 'Daily glow stories, before-and-after energy, and trending beauty tips.',
+              subtitle:
+                  'Daily glow stories, before-and-after energy, and trending beauty tips.',
             ),
             const SizedBox(height: 16),
             ...[
-              ('Glass skin reset', 'Barrier repair + SPF consistency for 8 weeks.'),
-              ('Soft glam confidence', 'Brows, blush placement, posture, and sleep.'),
-              ('Fitness glow', 'Protein breakfasts, walks, strength training, hydration.'),
+              (
+                'Glass skin reset',
+                'Barrier repair + SPF consistency for 8 weeks.',
+              ),
+              (
+                'Soft glam confidence',
+                'Brows, blush placement, posture, and sleep.',
+              ),
+              (
+                'Fitness glow',
+                'Protein breakfasts, walks, strength training, hydration.',
+              ),
             ].map(
               (story) => Padding(
                 padding: const EdgeInsets.only(bottom: 14),
@@ -1000,27 +1022,19 @@ class GlowScoreCard extends StatelessWidget {
     return GlassCard(
       child: Row(
         children: [
-          SizedBox(
+          Container(
             width: 118,
             height: 118,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CircularProgressIndicator(
-                  value: 0.86,
-                  strokeWidth: 12,
-                  backgroundColor: Colors.white.withValues(alpha: 0.72),
-                  color: GlowColors.hotPink,
-                ),
-                Center(
-                  child: Text(
-                    '86',
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: GlowColors.cardGradient(2),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 52,
+              ),
             ),
           ),
           const SizedBox(width: 18),
@@ -1029,15 +1043,15 @@ class GlowScoreCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Daily glow-up score',
+                  'Daily glow progress',
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 8),
-                const Text('Weekly progress +18%. Your consistency is doing the little sparkle math.'),
-                const SizedBox(height: 12),
-                const LinearProgressIndicator(value: 0.72),
+                const Text(
+                  'Celebrate consistency, not scores. Complete your daily habits and watch your routine compound.',
+                ),
               ],
             ),
           ),
@@ -1140,9 +1154,8 @@ class GlowScanHeroCard extends StatelessWidget {
               children: [
                 const Expanded(
                   child: _HeroScoreMetric(
-                    label: 'Glow Score',
-                    value: '87',
-                    suffix: '/100',
+                    label: 'Current Day',
+                    value: 'Day 1',
                     accent: GlowColors.hotPink,
                   ),
                 ),
@@ -1156,7 +1169,7 @@ class GlowScanHeroCard extends StatelessWidget {
                 ),
                 _softDivider(),
                 const Expanded(
-                  child: _HeroScoreMetric(label: 'Potential', value: '93%'),
+                  child: _HeroScoreMetric(label: 'Habits', value: 'Consistent'),
                 ),
               ],
             ),
@@ -1234,10 +1247,10 @@ class KeyMetricsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = const [
-      MetricData('Skin Health', '8.5/10', Icons.spa_rounded, 0.82),
-      MetricData('Symmetry', '8.0/10', Icons.face_rounded, 0.78),
-      MetricData('Features', '8.7/10', Icons.face_retouching_natural, 0.84),
-      MetricData('Glow Potential', '9.2/10', Icons.auto_awesome, 0.9),
+      MetricData('Skincare', 'Daily', Icons.spa_rounded, 0.82),
+      MetricData('Hydration', '2L', Icons.water_drop_rounded, 0.78),
+      MetricData('Movement', 'Active', Icons.fitness_center_rounded, 0.84),
+      MetricData('Sleep', '7-8h', Icons.bedtime_rounded, 0.9),
     ];
 
     return GridView.count(
@@ -1305,10 +1318,30 @@ class PersonalPlanPreview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedGoal = ref.watch(selectedGoalProvider);
     final plans = const [
-      PlanTileData('Skin Perfection', 'Custom skincare routines', '8-12 Weeks', Icons.spa_rounded),
-      PlanTileData('Hair Goals', 'Hair care & styling', '4-8 Weeks', Icons.face_3_rounded),
-      PlanTileData('Style & Aesthetic', 'Outfits that match your vibe', '8-12 Weeks', Icons.checkroom_rounded),
-      PlanTileData('Confidence Boost', 'Mindset & self love guides', '8 Weeks', Icons.favorite_rounded),
+      PlanTileData(
+        'Skin Perfection',
+        'Custom skincare routines',
+        '8-12 Weeks',
+        Icons.spa_rounded,
+      ),
+      PlanTileData(
+        'Hair Goals',
+        'Hair care & styling',
+        '4-8 Weeks',
+        Icons.face_3_rounded,
+      ),
+      PlanTileData(
+        'Style & Aesthetic',
+        'Outfits that match your vibe',
+        '8-12 Weeks',
+        Icons.checkroom_rounded,
+      ),
+      PlanTileData(
+        'Confidence Boost',
+        'Mindset & self love guides',
+        '8 Weeks',
+        Icons.favorite_rounded,
+      ),
     ];
 
     return GlassCard(
@@ -1334,8 +1367,8 @@ class PersonalPlanPreview extends ConsumerWidget {
               final columns = maxWidth > 900
                   ? 4
                   : maxWidth > 620
-                      ? 2
-                      : 1;
+                  ? 2
+                  : 1;
               final itemWidth = (maxWidth - (columns - 1) * 12) / columns;
               return Wrap(
                 spacing: 12,
@@ -1373,8 +1406,8 @@ void _openCoach(BuildContext context, WidgetRef ref, String title, int index) {
   };
 
   ref.read(selectedGoalProvider.notifier).state = index;
-  final question = prompts[title] ??
-      'Help me get started with a glow-up plan for $title.';
+  final question =
+      prompts[title] ?? 'Help me get started with a glow-up plan for $title.';
   Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => ai_coach.AiCoachScreen(initialQuestion: question),
@@ -1383,7 +1416,12 @@ void _openCoach(BuildContext context, WidgetRef ref, String title, int index) {
 }
 
 class PlanPreviewTile extends StatelessWidget {
-  const PlanPreviewTile({required this.plan, required this.selected, this.onTap, super.key});
+  const PlanPreviewTile({
+    required this.plan,
+    required this.selected,
+    this.onTap,
+    super.key,
+  });
 
   final PlanTileData plan;
   final bool selected;
@@ -1427,9 +1465,9 @@ class PlanPreviewTile extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 plan.title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 8),
               Text(
@@ -1491,7 +1529,10 @@ class GlowCalendarCard extends StatelessWidget {
               const SectionTitle('August Glow Calendar'),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   gradient: GlowColors.primaryGradient,
                   borderRadius: BorderRadius.circular(999),
@@ -1605,9 +1646,11 @@ class TodayProgressCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          ...['AM cleanse + SPF', 'Workout or walk', 'Night routine'].map(
-            (task) => GlowChecklistTile(id: 'diary-$task', title: task),
-          ),
+          ...[
+            'AM cleanse + SPF',
+            'Workout or walk',
+            'Night routine',
+          ].map((task) => GlowChecklistTile(id: 'diary-$task', title: task)),
         ],
       ),
     );
@@ -1826,11 +1869,18 @@ class GlowCameraPlaceholder extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.face_retouching_natural_rounded, size: 82, color: Colors.white),
+            Icon(
+              Icons.face_retouching_natural_rounded,
+              size: 82,
+              color: Colors.white,
+            ),
             SizedBox(height: 12),
             Text(
               'Add your selfie',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ],
         ),
@@ -1897,7 +1947,10 @@ class MiniCharts extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(metric.$1, style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(
+                  metric.$1,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(value: metric.$2),
               ],
@@ -1920,7 +1973,9 @@ class ChatBubble extends StatelessWidget {
       alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+        ),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           gradient: message.isUser ? GlowColors.primaryGradient : null,
@@ -1929,7 +1984,9 @@ class ChatBubble extends StatelessWidget {
         ),
         child: Text(
           message.text,
-          style: TextStyle(color: message.isUser ? Colors.white : GlowColors.text),
+          style: TextStyle(
+            color: message.isUser ? Colors.white : GlowColors.text,
+          ),
         ),
       ),
     );
@@ -1960,7 +2017,9 @@ class PremiumCard extends StatelessWidget {
             label: const Text('Unlock Premium'),
           ),
           const SizedBox(height: 8),
-          const Text('Free plan: 3 scans/month, basic roadmap, limited AI chat.'),
+          const Text(
+            'Free plan: 3 scans/month, basic roadmap, limited AI chat.',
+          ),
         ],
       ),
     );
@@ -2096,46 +2155,91 @@ const roadmapSections = [
   RoadmapSection(
     title: 'Morning Routine',
     icon: Icons.light_mode_rounded,
-    items: ['Gentle cleanse', 'Vitamin C or hydrating serum', 'Moisturizer', 'SPF 50'],
+    items: [
+      'Gentle cleanse',
+      'Vitamin C or hydrating serum',
+      'Moisturizer',
+      'SPF 50',
+    ],
   ),
   RoadmapSection(
     title: 'Night Routine',
     icon: Icons.nightlight_round,
-    items: ['Double cleanse', 'Barrier serum', 'Treatment nights 2x/week', 'Lip mask'],
+    items: [
+      'Double cleanse',
+      'Barrier serum',
+      'Treatment nights 2x/week',
+      'Lip mask',
+    ],
   ),
   RoadmapSection(
     title: 'Workout Plan',
     icon: Icons.fitness_center_rounded,
-    items: ['3 strength sessions', '2 low-impact walks', 'Daily stretching', 'Posture reset'],
+    items: [
+      '3 strength sessions',
+      '2 low-impact walks',
+      'Daily stretching',
+      'Posture reset',
+    ],
   ),
   RoadmapSection(
     title: 'Nutrition Plan',
     icon: Icons.restaurant_rounded,
-    items: ['Protein breakfast', 'Colorful lunch plate', 'Omega-3 source', 'Limit late sugar'],
+    items: [
+      'Protein breakfast',
+      'Colorful lunch plate',
+      'Omega-3 source',
+      'Limit late sugar',
+    ],
   ),
   RoadmapSection(
     title: 'Hydration & Sleep',
     icon: Icons.bedtime_rounded,
-    items: ['2.2L water goal', 'Electrolytes after workouts', '8 hour sleep window', 'Phone down 45 min before bed'],
+    items: [
+      '2.2L water goal',
+      'Electrolytes after workouts',
+      '8 hour sleep window',
+      'Phone down 45 min before bed',
+    ],
   ),
   RoadmapSection(
     title: 'Haircare & Skincare',
     icon: Icons.spa_rounded,
-    items: ['Weekly scalp care', 'Heat protectant', 'Patch test new actives', 'Monthly routine review'],
+    items: [
+      'Weekly scalp care',
+      'Heat protectant',
+      'Patch test new actives',
+      'Monthly routine review',
+    ],
   ),
   RoadmapSection(
     title: 'Fashion Tips',
     icon: Icons.checkroom_rounded,
-    items: ['Build color palette', 'Tailored basics', 'Signature scent', 'Jewelry layering'],
+    items: [
+      'Build color palette',
+      'Tailored basics',
+      'Signature scent',
+      'Jewelry layering',
+    ],
   ),
   RoadmapSection(
     title: 'Confidence Challenges',
     icon: Icons.psychology_alt_rounded,
-    items: ['One compliment journal entry', 'Posture walk', 'Speak up once today', 'Weekly solo date'],
+    items: [
+      'One compliment journal entry',
+      'Posture walk',
+      'Speak up once today',
+      'Weekly solo date',
+    ],
   ),
   RoadmapSection(
     title: 'Weekly Missions',
     icon: Icons.flag_rounded,
-    items: ['Progress selfie', 'Habit audit', 'Refresh outfits', 'Plan next week rituals'],
+    items: [
+      'Progress selfie',
+      'Habit audit',
+      'Refresh outfits',
+      'Plan next week rituals',
+    ],
   ),
 ];

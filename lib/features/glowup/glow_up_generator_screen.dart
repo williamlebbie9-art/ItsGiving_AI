@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/providers/user_journey_provider.dart';
@@ -112,6 +114,7 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
   Uint8List? _generatedImage;
   String? _errorMessage;
   bool _saved = false;
+  String? _savedImagePath;
   bool _buildingPlan = false;
 
   Future<void> _generate(GlowUpStyle style) async {
@@ -120,6 +123,7 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
       _state = GenerationState.preparing;
       _errorMessage = null;
       _saved = false;
+      _savedImagePath = null;
     });
 
     await Future<void>.delayed(const Duration(milliseconds: 900));
@@ -146,6 +150,27 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
     }
   }
 
+  /// Persists the generated preview image to app documents storage and
+  /// returns the local file path. The path is stored on the plan so the
+  /// user's chosen look travels with the plan through history and resume.
+  Future<String?> _saveGeneratedImage() async {
+    final bytes = _generatedImage;
+    final style = _selectedStyle;
+    if (bytes == null || style == null) return null;
+
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File(
+        '${dir.path}/glowup_look_${style.id}_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await file.writeAsBytes(bytes, flush: true);
+      return file.path;
+    } catch (e) {
+      debugPrint('[GlowUpGenerator] Could not save look image: $e');
+      return null;
+    }
+  }
+
   /// Builds a structured 30-day plan and navigates to the plan screen.
   /// If a plan was already created during onboarding, reuses it —
   /// no extra AI call is needed.
@@ -160,6 +185,13 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
       if (existingPlan != null) {
         _enterPlan();
         return;
+      }
+
+      // Persist the generated look so it can be stored with the plan.
+      final imagePath = _savedImagePath ?? await _saveGeneratedImage();
+      if (imagePath != null) {
+        _savedImagePath = imagePath;
+        _saved = true;
       }
 
       // Load the user profile from SharedPreferences.
@@ -179,6 +211,9 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
           .generatePlan(
             profile: profile,
             faceScanSummary: widget.faceScanSummary,
+            styleId: _selectedStyle!.id,
+            styleName: _selectedStyle!.name,
+            generatedImagePath: imagePath,
           );
 
       if (!mounted) return;
@@ -360,10 +395,21 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
           children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: () {
-                  setState(() => _saved = true);
+                onPressed: () async {
+                  final path = await _saveGeneratedImage();
+                  if (!mounted) return;
+                  setState(() {
+                    _saved = path != null;
+                    _savedImagePath = path;
+                  });
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Look saved to your plan!')),
+                    SnackBar(
+                      content: Text(
+                        path != null
+                            ? 'Look saved to your plan!'
+                            : 'Could not save the look. You can still build your plan.',
+                      ),
+                    ),
                   );
                 },
                 icon: Icon(

@@ -114,7 +114,8 @@ class _IntroResultsContinuationState
 
     // Show the paywall then the auth screen before continuing to the
     // glow-up generator / plan builder.
-    await showIntroPaywallAuthGate(context, ref);
+    final completedGate = await showIntroPaywallAuthGate(context, ref);
+    if (!completedGate) return;
     if (!mounted) return;
 
     Navigator.of(context).push(
@@ -134,7 +135,8 @@ class _IntroResultsContinuationState
   /// even when skipping the plan builder.
   Future<void> _skipFlow() async {
     // Show the paywall then the auth screen before entering the app.
-    await showIntroPaywallAuthGate(context, ref);
+    final completedGate = await showIntroPaywallAuthGate(context, ref);
+    if (!completedGate) return;
     if (!mounted) return;
 
     await ref.read(userJourneyProvider.notifier).markIntroFlowCompleted();

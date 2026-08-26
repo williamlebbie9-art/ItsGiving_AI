@@ -14,11 +14,15 @@ const FREE_LIMITS = {
   faceScan: 1,
   coachInsight: 3,
   plan: 1,
+  glowUpImage: 1,
 };
+const ALLOWED_OPERATIONS = new Set(Object.keys(FREE_LIMITS));
+const MAX_PROMPT_LENGTH = 14000;
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 /**
  * Verifies the Firebase ID token from the Authorization header.
- * Returns the UID, or null if the token is invalid/missing.
+ * Returns decoded token data, or null if the token is invalid/missing.
  */
 async function verifyAuth(req) {
   const authHeader = req.headers.authorization || "";
@@ -30,7 +34,7 @@ async function verifyAuth(req) {
   }
   try {
     const decoded = await admin.auth().verifyIdToken(token);
-    return decoded.uid;
+    return decoded;
   } catch (e) {
     logger.warn("Auth verification failed", { error: e.message });
     return null;
@@ -39,7 +43,7 @@ async function verifyAuth(req) {
 
 /**
  * Reads the user's usage counters from Firestore.
- * Returns { faceScanCount, coachInsightCount, planCount }.
+ * Returns the server-managed counters for every billable AI operation.
  */
 async function getUsage(uid) {
   try {
@@ -51,17 +55,28 @@ async function getUsage(uid) {
       .doc("counts")
       .get();
     if (!doc.exists) {
-      return { faceScanCount: 0, coachInsightCount: 0, planCount: 0 };
+      return {
+        faceScanCount: 0,
+        coachInsightCount: 0,
+        planCount: 0,
+        glowUpImageCount: 0,
+      };
     }
     const data = doc.data() || {};
     return {
       faceScanCount: data.faceScanCount || 0,
       coachInsightCount: data.coachInsightCount || 0,
       planCount: data.planCount || 0,
+      glowUpImageCount: data.glowUpImageCount || 0,
     };
   } catch (e) {
     logger.warn("Could not read usage", { error: e.message });
-    return { faceScanCount: 0, coachInsightCount: 0, planCount: 0 };
+    return {
+      faceScanCount: 0,
+      coachInsightCount: 0,
+      planCount: 0,
+      glowUpImageCount: 0,
+    };
   }
 }
 
@@ -86,7 +101,8 @@ async function incrementUsage(uid, field) {
  * Checks whether the user is allowed to perform the given AI operation.
  * Returns { allowed: true } or { allowed: false, reason }.
  */
-async function checkAccess(uid, operation) {
+async function checkAccess(uid, operation, isPremium) {
+  if (isPremium) return { allowed: true };
   const usage = await getUsage(uid);
   const limit = FREE_LIMITS[operation];
   if (limit == null) {
@@ -101,6 +117,25 @@ async function checkAccess(uid, operation) {
     };
   }
   return { allowed: true };
+}
+
+function isPremiumUser(decodedToken) {
+  // This claim must be set by a trusted RevenueCat webhook/admin service.
+  return decodedToken?.premium === true;
+}
+
+function validateImages(images) {
+  if (!Array.isArray(images) || images.length > 1) return 'Send at most one image.';
+  for (const image of images) {
+    if (!image || typeof image.data !== 'string' ||
+        !['image/jpeg', 'image/png', 'image/webp'].includes(image.mimeType)) {
+      return 'Image must be JPEG, PNG, or WebP base64 data.';
+    }
+    if (Buffer.byteLength(image.data, 'base64') > MAX_IMAGE_BYTES) {
+      return 'Image is too large. Maximum size is 4 MB.';
+    }
+  }
+  return null;
 }
 
 exports.generateDecision = onRequest(
@@ -119,23 +154,34 @@ exports.generateDecision = onRequest(
     }
 
     const { category, prompt, images = [], operation } = req.body ?? {};
-    if (!prompt || typeof prompt !== "string") {
-      res.status(400).json({ error: "prompt is required." });
+    if (!prompt || typeof prompt !== "string" || prompt.length > MAX_PROMPT_LENGTH) {
+      res.status(400).json({ error: "A prompt up to 14,000 characters is required." });
+      return;
+    }
+
+    const imageError = validateImages(images);
+    if (imageError) {
+      res.status(400).json({ error: imageError });
       return;
     }
 
     // Verify the user is authenticated.
-    const uid = await verifyAuth(req);
-    if (!uid) {
+    const decodedToken = await verifyAuth(req);
+    if (!decodedToken) {
       res.status(401).json({ error: "Authentication required." });
       return;
     }
+    const uid = decodedToken.uid;
 
     // Determine which usage bucket this request consumes.
     const op = typeof operation === "string" ? operation : "coachInsight";
+    if (!ALLOWED_OPERATIONS.has(op)) {
+      res.status(400).json({ error: "Invalid AI operation." });
+      return;
+    }
 
     // Check access BEFORE making any expensive AI call.
-    const access = await checkAccess(uid, op);
+    const access = await checkAccess(uid, op, isPremiumUser(decodedToken));
     if (!access.allowed) {
       res.status(403).json({ error: access.reason });
       return;
@@ -154,6 +200,15 @@ exports.generateDecision = onRequest(
     });
 
     try {
+      if (op === "plan") {
+        const plan = provider === "openai"
+          ? await callOpenAiPlan(prompt)
+          : await callGeminiPlan(prompt);
+        await incrementUsage(uid, "planCount");
+        res.status(200).json({ plan });
+        return;
+      }
+
       const result = provider === "openai"
         ? await callOpenAi({ category: normalizedCategory, prompt, images })
         : await callGemini({ category: normalizedCategory, prompt, images });
@@ -196,9 +251,22 @@ exports.generateGlowUpImage = onRequest(
     }
 
     // Verify the user is authenticated.
-    const uid = await verifyAuth(req);
-    if (!uid) {
+    const decodedToken = await verifyAuth(req);
+    if (!decodedToken) {
       res.status(401).json({ error: "Authentication required." });
+      return;
+    }
+    const uid = decodedToken.uid;
+
+    if (typeof image.data !== 'string' ||
+        !['image/jpeg', 'image/png', 'image/webp'].includes(image.mimeType) ||
+        Buffer.byteLength(image.data, 'base64') > MAX_IMAGE_BYTES) {
+      res.status(400).json({ error: 'Provide a JPEG, PNG, or WebP image under 4 MB.' });
+      return;
+    }
+    const access = await checkAccess(uid, 'glowUpImage', isPremiumUser(decodedToken));
+    if (!access.allowed) {
+      res.status(403).json({ error: access.reason });
       return;
     }
 
@@ -255,6 +323,7 @@ exports.generateGlowUpImage = onRequest(
       }
 
       logger.info("OpenAI image response received", { status: response.status });
+      await incrementUsage(uid, 'glowUpImageCount');
       res.status(200).json({
         image: b64Json,
         mimeType: "image/png",
@@ -426,6 +495,47 @@ alternatives, pros, and cons must each be arrays of short strings.`,
   const content = data?.choices?.[0]?.message?.content ?? "{}";
   const parsed = JSON.parse(content);
   return normalizeDecisionResult(parsed, category);
+}
+
+async function callOpenAiPlan(prompt) {
+  const apiKey = openAiApiKey.value() || process.env.OPENAI_API_KEY || "";
+  if (!apiKey) throw new Error("OPENAI_API_KEY is missing.");
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Return only valid JSON matching the requested 30-day plan schema. Do not wrap it in a decision-result object, markdown, or code fences." },
+        { role: "user", content: prompt },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+    }),
+  });
+  if (!response.ok) throw new Error(`OpenAI plan request failed: ${response.status}`);
+  const data = await response.json();
+  return JSON.parse(data?.choices?.[0]?.message?.content ?? "{}");
+}
+
+async function callGeminiPlan(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) throw new Error("GEMINI_API_KEY is missing.");
+  const model = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        generationConfig: { temperature: 0.3, responseMimeType: "application/json" },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+      }),
+    },
+  );
+  if (!response.ok) throw new Error(`Gemini plan request failed: ${response.status}`);
+  const data = await response.json();
+  return JSON.parse(stripJsonFence(data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}"));
 }
 
 async function callGemini({ category, prompt, images }) {

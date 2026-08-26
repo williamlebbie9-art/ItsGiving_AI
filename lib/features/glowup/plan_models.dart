@@ -187,6 +187,10 @@ class GlowUpPlan {
     this.status = 'active',
     this.overview = '',
     this.goals = const [],
+    this.styleId,
+    this.styleName,
+    this.faceScanSummary,
+    this.generatedImagePath,
   });
 
   final String planId;
@@ -198,6 +202,16 @@ class GlowUpPlan {
   final String status;
   final String overview;
   final List<String> goals;
+
+  /// The look selected in the image-generation step, stored with this plan.
+  final String? styleId;
+  final String? styleName;
+
+  /// Context used to personalize the plan; never displayed unless requested.
+  final String? faceScanSummary;
+
+  /// Path to the locally saved AI-generated glow-up preview image.
+  final String? generatedImagePath;
 
   int get totalDays => weeks.fold(0, (sum, w) => sum + w.days.length);
 
@@ -238,6 +252,10 @@ class GlowUpPlan {
     int? currentDay,
     String? status,
     List<PlanWeek>? weeks,
+    String? styleId,
+    String? styleName,
+    String? faceScanSummary,
+    String? generatedImagePath,
   }) {
     return GlowUpPlan(
       planId: planId,
@@ -249,6 +267,10 @@ class GlowUpPlan {
       status: status ?? this.status,
       overview: overview,
       goals: goals,
+      styleId: styleId ?? this.styleId,
+      styleName: styleName ?? this.styleName,
+      faceScanSummary: faceScanSummary ?? this.faceScanSummary,
+      generatedImagePath: generatedImagePath ?? this.generatedImagePath,
     );
   }
 
@@ -262,6 +284,10 @@ class GlowUpPlan {
     'status': status,
     'overview': overview,
     'goals': goals,
+    'styleId': styleId,
+    'styleName': styleName,
+    'faceScanSummary': faceScanSummary,
+    'generatedImagePath': generatedImagePath,
   };
 
   factory GlowUpPlan.fromJson(Map<String, dynamic> json) {
@@ -281,6 +307,10 @@ class GlowUpPlan {
       goals: (json['goals'] as List<dynamic>? ?? const [])
           .map((g) => g.toString())
           .toList(),
+      styleId: json['styleId']?.toString(),
+      styleName: json['styleName']?.toString(),
+      faceScanSummary: json['faceScanSummary']?.toString(),
+      generatedImagePath: json['generatedImagePath']?.toString(),
     );
   }
 

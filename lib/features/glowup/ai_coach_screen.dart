@@ -191,8 +191,9 @@ class _AiCoachScreenState extends ConsumerState<AiCoachScreen> {
         ),
       );
 
-      // Only increment usage AFTER a successful AI response.
-      await ref.read(usageProvider.notifier).incrementCoachInsight(uid);
+      // The backend records successful requests; refresh its authoritative
+      // counter without double-charging this response.
+      await ref.read(usageProvider.notifier).load(uid);
 
       if (!mounted) return;
       final reply = result.reasoning.isNotEmpty

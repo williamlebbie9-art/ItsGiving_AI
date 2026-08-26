@@ -30,14 +30,12 @@ This phase implements Products + Fashion first, with the full category framework
 
 ## AI Provider Setup
 
-The app supports four provider modes through environment variables:
-- mock
-- firebase
-- openai
-- gemini
+The mobile app uses the Firebase provider only. Provider API keys stay in
+Firebase Secrets / the Functions environment and must never be placed in the
+mobile app's `.env` file.
 
 1. Copy `.env.example` to `.env`
-2. For secure API keys, put them in `functions/.env`
+2. For local emulation, put provider keys in `functions/.secret.local`
 3. Run `npm --prefix functions install`
 4. Run `firebase emulators:start --only functions`
 
@@ -46,10 +44,6 @@ Example app `.env`:
 ```env
 AI_PROVIDER=firebase
 FIREBASE_FUNCTIONS_URL=
-OPENAI_API_KEY=
-GEMINI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
-GEMINI_MODEL=gemini-1.5-flash
 ```
 
 Example `functions/.env`:
@@ -63,7 +57,8 @@ OPENAI_MODEL=gpt-4o-mini
 AI_FUNCTION_REGION=us-central1
 ```
 
-If provider keys are missing or requests fail, the app falls back to mock output.
+If the provider is unavailable, the app shows a retryable error and retains a
+local fallback plan instead of blocking the onboarding journey.
 
 ## Run Locally
 

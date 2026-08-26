@@ -1,25 +1,24 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'glow_models.dart';
+import 'plan_models.dart';
+import 'plan_provider.dart';
 
-class ProgressTrackingScreen extends StatefulWidget {
+class ProgressTrackingScreen extends ConsumerStatefulWidget {
   const ProgressTrackingScreen({super.key});
 
   @override
-  State<ProgressTrackingScreen> createState() => _ProgressTrackingScreenState();
+  ConsumerState<ProgressTrackingScreen> createState() => _ProgressTrackingScreenState();
 }
 
-class _ProgressTrackingScreenState extends State<ProgressTrackingScreen> {
+class _ProgressTrackingScreenState extends ConsumerState<ProgressTrackingScreen> {
   final _picker = ImagePicker();
   String? _beforeImagePath;
   String? _afterImagePath;
-  int _streak = 0;
-  int _completedRoutines = 0;
-  final List<GlowCategoryScore> _scores = List.of(defaultCategoryScores);
 
   @override
   void initState() {
@@ -33,8 +32,6 @@ class _ProgressTrackingScreenState extends State<ProgressTrackingScreen> {
     setState(() {
       _beforeImagePath = prefs.getString('glowup_before_photo');
       _afterImagePath = prefs.getString('glowup_after_photo');
-      _streak = prefs.getInt('glowup_streak') ?? 0;
-      _completedRoutines = prefs.getInt('glowup_completed_routines') ?? 0;
     });
   }
 
@@ -61,24 +58,25 @@ class _ProgressTrackingScreenState extends State<ProgressTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final plan = ref.watch(planProvider).plan;
     return Scaffold(
       appBar: AppBar(title: const Text('Progress'), centerTitle: true),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildStreakCard(context),
+          _buildStreakCard(context, plan),
           const SizedBox(height: 16),
-          _buildScoreCard(context),
+          _buildPlanProgressCard(context, plan),
           const SizedBox(height: 16),
           _buildBeforeAfterSection(context),
-          const SizedBox(height: 16),
-          _buildCategoryProgress(context),
         ],
       ),
     );
   }
 
-  Widget _buildStreakCard(BuildContext context) {
+  Widget _buildStreakCard(BuildContext context, GlowUpPlan? plan) {
+    final streak = plan?.streak ?? 0;
+    final completedDays = plan?.completedDays ?? 0;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -110,7 +108,7 @@ class _ProgressTrackingScreenState extends State<ProgressTrackingScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$_streak-day streak',
+                  '$streak-day streak',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -118,7 +116,7 @@ class _ProgressTrackingScreenState extends State<ProgressTrackingScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$_completedRoutines routines completed',
+                  '$completedDays plan days completed',
                   style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
                 ),
               ],
@@ -129,11 +127,27 @@ class _ProgressTrackingScreenState extends State<ProgressTrackingScreen> {
     );
   }
 
-  Widget _buildScoreCard(BuildContext context) {
-    final avg = _scores.isEmpty
+  Widget _buildPlanProgressCard(BuildContext context, GlowUpPlan? plan) {
+    final completedTasks = plan == null
         ? 0
-        : (_scores.fold<int>(0, (sum, s) => sum + s.score) / _scores.length)
-              .round();
+        : plan.weeks.fold<int>(
+            0,
+            (sum, week) => sum + week.days.fold<int>(
+              0,
+              (daySum, day) => daySum + day.completedCount,
+            ),
+          );
+    final totalTasks = plan == null
+        ? 0
+        : plan.weeks.fold<int>(
+            0,
+            (sum, week) => sum + week.days.fold<int>(
+              0,
+              (daySum, day) => daySum + day.tasks.length,
+            ),
+          );
+    final progress = totalTasks == 0 ? 0.0 : completedTasks / totalTasks;
+    final percent = (progress * 100).round();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -151,14 +165,14 @@ class _ProgressTrackingScreenState extends State<ProgressTrackingScreen> {
               fit: StackFit.expand,
               children: [
                 CircularProgressIndicator(
-                  value: avg / 100,
+                  value: progress,
                   strokeWidth: 10,
                   backgroundColor: const Color(0xFFFFE4F1),
                   color: const Color(0xFFFF5FA2),
                 ),
                 Center(
                   child: Text(
-                    '$avg',
+                    '$percent%',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -173,14 +187,16 @@ class _ProgressTrackingScreenState extends State<ProgressTrackingScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Glow-Up Score',
+                  'Plan Progress',
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Your overall glow score across 8 categories. Keep it up! ✨',
+                  totalTasks == 0
+                      ? 'Start a plan to track completed habits here.'
+                      : '$completedTasks of $totalTasks planned habits completed. This is progress, not a beauty rating.',
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
@@ -279,52 +295,4 @@ class _ProgressTrackingScreenState extends State<ProgressTrackingScreen> {
     );
   }
 
-  Widget _buildCategoryProgress(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Category Progress',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 12),
-        ..._scores.map(
-          (score) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(score.icon, color: score.color, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      score.name,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${score.score}/100',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: score.color,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                LinearProgressIndicator(
-                  value: score.score / 100,
-                  backgroundColor: score.color.withValues(alpha: 0.15),
-                  color: score.color,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }

@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/onboarding_provider.dart';
 import 'glow_models.dart';
-import 'plan_provider.dart';
 
 class EnhancedOnboardingScreen extends ConsumerStatefulWidget {
   const EnhancedOnboardingScreen({super.key});
@@ -157,7 +156,10 @@ class _EnhancedOnboardingScreenState
     // No login screen is shown — the anonymous UID becomes the single
     // source of truth for all user data.
     try {
-      final user = await ref.read(authServiceProvider).signInAnonymously();
+      final user = await ref
+          .read(authServiceProvider)
+          .signInAnonymously()
+          .timeout(const Duration(seconds: 8));
       // Persist the onboarding profile under the anonymous UID so it can be
       // restored after an app restart.
       await _saveProfileToFirestore(user.uid, profile);
@@ -167,24 +169,10 @@ class _EnhancedOnboardingScreenState
       debugPrint('[Onboarding] Anonymous sign-in failed: $e');
     }
 
-    // Generate the personalized AI plan BEFORE routing away from this
-    // screen. If we mark onboarding complete first, app.dart swaps to
-    // Home and this widget is disposed — the plan would never be created.
-    // Use a timeout so the user is never stuck on a spinner if the AI
-    // service is slow or unreachable.
-    try {
-      await ref
-          .read(planProvider.notifier)
-          .generatePlan(profile: profile)
-          .timeout(const Duration(seconds: 20));
-    } catch (e) {
-      debugPrint('[Onboarding] Could not generate plan: $e');
-    }
-
     if (!mounted) return;
 
-    // Mark onboarding complete LAST — this triggers app.dart to swap to
-    // the main Home experience where the generated plan is ready to view.
+    // Move straight to the value-first face scan. Plan creation is deferred
+    // so a slow AI provider can never trap the user on onboarding.
     await ref.read(onboardingProvider.notifier).complete();
   }
 

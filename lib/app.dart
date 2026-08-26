@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/providers/onboarding_provider.dart';
 import 'core/providers/user_journey_provider.dart';
 import 'features/glowup/enhanced_onboarding_screen.dart';
+import 'features/glowup/ai_face_scan_intro_flow.dart';
 import 'features/glowup/glow_app_shell.dart';
 
 /// Root app widget. Routes between onboarding, auth, and the main app.
@@ -135,9 +136,12 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
       return const EnhancedOnboardingScreen();
     }
 
-    // 2. Main app. The plan is auto-generated during onboarding so the
-    //    user sees their personalized 30-day glow-up plan immediately.
-    //    The AI face scan is available from the dashboard quick actions.
+    // 2. Show the introductory face scan before opening Home.
+    if (!journey.introFlowCompleted) {
+      return const AiFaceScanIntroFlow();
+    }
+
+    // 3. AI plans are created on demand, never while the user waits to enter.
     return const GlowAppShell();
   }
 }

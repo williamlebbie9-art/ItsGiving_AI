@@ -136,6 +136,17 @@ class _PlanContent extends ConsumerWidget {
                 context,
               ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
+            if (plan.styleName != null && plan.styleName!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                '${plan.styleName} style plan',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFFFF5FA2),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
               'Day ${plan.currentDay} of ${plan.totalDays}',
