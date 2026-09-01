@@ -181,6 +181,11 @@ class PlanNotifier extends StateNotifier<PlanState> {
     state = state.copyWith(plan: active, clearError: true);
   }
 
+  /// Archives an individual plan (from history) via the service.
+  Future<void> archivePlan(GlowUpPlan plan) async {
+    await _service.archivePlan(plan);
+  }
+
   void clearError() {
     state = state.copyWith(clearError: true);
   }

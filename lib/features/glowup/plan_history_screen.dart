@@ -5,7 +5,8 @@ import 'plan_models.dart';
 import 'plan_provider.dart';
 import 'plan_service.dart';
 
-/// Shows the user's current plan status and their archived plan history.
+/// Shows the user's active plan (clearly distinguished) and their past
+/// (archived) plans. Each past plan card offers Resume and Archive actions.
 class PlanHistoryScreen extends ConsumerStatefulWidget {
   const PlanHistoryScreen({super.key});
 
@@ -33,10 +34,28 @@ class _PlanHistoryScreenState extends ConsumerState<PlanHistoryScreen> {
     });
   }
 
+  Future<void> _reload() async {
+    setState(() => _loading = true);
+    await _loadHistory();
+  }
+
+  /// Makes the given plan active and opens it. The prior active plan is kept
+  /// in history (handled by the service's activatePlan).
+  Future<void> _openPlan(GlowUpPlan plan) async {
+    await ref.read(planProvider.notifier).activatePlan(plan);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Archives a past plan (keeps the current active plan unchanged).
+  Future<void> _archivePlan(GlowUpPlan plan) async {
+    await ref.read(planProvider.notifier).archivePlan(plan);
+    await _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Plan History'), centerTitle: true),
+      appBar: AppBar(title: const Text('My Plans'), centerTitle: true),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -73,7 +92,6 @@ class _PlanHistoryScreenState extends ConsumerState<PlanHistoryScreen> {
                 ),
               )
             : ListView.separated(
-                padding: const EdgeInsets.all(18),
                 itemCount: _history.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (_, index) {

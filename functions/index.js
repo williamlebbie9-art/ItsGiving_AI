@@ -20,6 +20,28 @@ const ALLOWED_OPERATIONS = new Set(Object.keys(FREE_LIMITS));
 const MAX_PROMPT_LENGTH = 14000;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
+// System prompt shared by OpenAI and Gemini for 30-day plan generation.
+// Emphasizes that this is a MULTI-DAY PROGRAM: daily anchor habits may repeat,
+// rotating activities must vary between consecutive days.
+const PLAN_SYSTEM_PROMPT = `You are generating a personalized 30-day glow-up plan for a mobile app.
+
+This is a MULTI-DAY PROGRAM (30 days), NOT one routine repeated across days. You design 30 DISTINCT days that progress toward the user's goals.
+
+Every day contains two kinds of tasks:
+A) DAILY ANCHOR HABITS - intentionally daily, allowed to repeat verbatim every day: water/hydration, basic morning/evening skincare + SPF, basic hygiene (wash face, shower, oral care), sleep/wind-down.
+B) ROTATING ACTIVITIES - must vary between consecutive days: fitness/workouts, stretching/recovery, hair/scalp/body care, skin treatments (masks, exfoliation, massage), grooming/style details, mindset/confidence/self-care, lifestyle extras.
+
+Anti-duplication rules:
+1. The exact same complete routine must NOT appear on consecutive days.
+2. The same non-essential (rotating) task must NOT appear on two consecutive days.
+3. Essential daily habits (section A) may repeat every day.
+4. Activities designed to be daily may repeat intentionally.
+5. Different days should have a distinct focus (training, hair, skin treatment, recovery, self-care, etc.).
+6. Progress logically rather than changing randomly.
+7. Do not add random text or random tasks just to create variety.
+8. Do not output a generic fixed routine - personalize to the user.
+
+Return ONLY valid JSON matching the requested plan schema. Do not wrap it in markdown or code fences.`;
 /**
  * Verifies the Firebase ID token from the Authorization header.
  * Returns decoded token data, or null if the token is invalid/missing.
@@ -506,11 +528,11 @@ async function callOpenAiPlan(prompt) {
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Return only valid JSON matching the requested 30-day plan schema. Do not wrap it in a decision-result object, markdown, or code fences." },
+        { role: "system", content: PLAN_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       response_format: { type: "json_object" },
-      temperature: 0.3,
+      temperature: 0.6,
     }),
   });
   if (!response.ok) throw new Error(`OpenAI plan request failed: ${response.status}`);
@@ -528,7 +550,8 @@ async function callGeminiPlan(prompt) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        generationConfig: { temperature: 0.3, responseMimeType: "application/json" },
+        generationConfig: { temperature: 0.6, responseMimeType: "application/json" },
+        systemInstruction: { role: "user", parts: [{ text: PLAN_SYSTEM_PROMPT }] },
         contents: [{ role: "user", parts: [{ text: prompt }] }],
       }),
     },

@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/services/ai_client.dart';
 import 'glow_models.dart';
 import 'plan_models.dart';
+import 'plan_variety.dart';
 
 /// Manages the user's 30-day glow-up plan: generation, persistence,
 /// progress tracking, and retrieval.
@@ -132,6 +133,62 @@ class PlanService {
     }
   }
 
+  /// Archives a specific plan (from history) without changing the active plan.
+  /// Used by the "Archive" action on past-plan cards.
+  Future<void> archivePlan(GlowUpPlan plan) async {
+    final prefs = await SharedPreferences.getInstance();
+    final historyRaw = prefs.getString(_localPlanHistoryKey) ?? '[]';
+    final history = (jsonDecode(historyRaw) as List<dynamic>? ?? const [])
+        .map(
+          (entry) =>
+              GlowUpPlan.fromJson(Map<String, dynamic>.from(entry as Map)),
+        )
+        .where((p) => p.planId != plan.planId)
+        .toList();
+    final archived = plan.copyWith(status: 'archived');
+    history.insert(0, archived);
+    await prefs.setString(
+      _localPlanHistoryKey,
+      jsonEncode(history.take(10).map((p) => p.toJson()).toList()),
+    );
+
+    try {
+      final userId = await _getUserId();
+      final db = FirebaseDatabase.instance;
+      await db
+          .ref('glowup_plans/$userId/history/${plan.planId}')
+          .set(archived.toJson())
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {}
+  }
+
+  /// Makes an archived plan the active plan. The prior active plan is kept in
+  /// history, so users can safely switch between their saved journeys.
+  Future<GlowUpPlan> activatePlan(GlowUpPlan selected) async {
+    final current = await loadCurrentPlan();
+    final prefs = await SharedPreferences.getInstance();
+    final historyRaw = prefs.getString(_localPlanHistoryKey) ?? '[]';
+    final history = (jsonDecode(historyRaw) as List<dynamic>? ?? const [])
+        .map(
+          (entry) =>
+              GlowUpPlan.fromJson(Map<String, dynamic>.from(entry as Map)),
+        )
+        .where((plan) => plan.planId != selected.planId)
+        .toList();
+
+    if (current != null && current.planId != selected.planId) {
+      history.insert(0, current.copyWith(status: 'archived'));
+    }
+    await prefs.setString(
+      _localPlanHistoryKey,
+      jsonEncode(history.take(10).map((plan) => plan.toJson()).toList()),
+    );
+
+    final active = selected.copyWith(status: 'active');
+    await savePlan(active);
+    return active;
+  }
+
   /// Generates a personalized 30-day plan using the user's onboarding
   /// profile and optional face-scan summary. Returns structured data.
   ///
@@ -162,7 +219,49 @@ class PlanService {
           '$faceContext'
           '$styleContext'
           '\n'
-          'Return STRICT JSON with this exact structure:\n'
+          'IMPORTANT: This is a MULTI-DAY PROGRAM, NOT one routine copied over '
+          'and over. You are designing 30 DISTINCT days that progress toward '
+          'the user\'s goals. Design each day independently while keeping the '
+          'journey coherent.\n'
+          '\n'
+          'Every day is built from two kinds of tasks:\n'
+          '\n'
+          'A) DAILY ANCHOR HABITS — allowed on EVERY day (intentionally daily, '
+          'they may repeat verbatim): water/hydration, basic morning and/or '
+          'evening skincare + SPF, basic hygiene (wash face, shower, oral '
+          'care), and sleep/wind-down habits.\n'
+          '\n'
+          'B) ROTATING ACTIVITIES — must VARY between consecutive days: '
+          'fitness/workouts, stretching and recovery, hair/scalp and body '
+          'care, skin treatments (masks, exfoliation, facial massage), '
+          'grooming and style details, mindset/confidence/self-care practices, '
+          'and lifestyle extras (herbal teas, snacks, dry brushing). Choose '
+          'them from the user\'s actual goal, experience level, skin type, '
+          'sleep, desired vibe, and lifestyle — never random filler.\n'
+          '\n'
+          'Variety rhythm:\n'
+          '- No single rotating activity on two consecutive days.\n'
+          '- No more than 2 of the SAME rotating activity in any 3-day window.\n'
+          '- Use recovery/rest days after harder workout days (stretch, '
+          'mobility, or a gentle walk).\n'
+          '- Progress logically: Week 1 foundation → Week 2 build → Week 3 '
+          'elevate → Week 4 refine. Do not jump between wildly different '
+          'intensities day to day.\n'
+          '\n'
+          'ANTI-DUPLICATION RULES:\n'
+          '1. The exact same complete routine must NOT appear on consecutive days.\n'
+          '2. The same non-essential (rotating) task must NOT appear on two '
+          'consecutive days.\n'
+          '3. Essential daily habits (section A) MAY repeat every day.\n'
+          '4. Activities designed to be daily may repeat intentionally.\n'
+          '5. Different days should have a distinct focus (training, hairstyle, '
+          'skin treatment, recovery, self-care, etc.).\n'
+          '6. Progress logically rather than changing randomly.\n'
+          '7. Do not add random text or random tasks just to create variety.\n'
+          '8. Do not output a generic fixed routine — personalize to THIS user.\n'
+          '\n'
+          'Return STRICT JSON with this exact structure (observe how the daily '
+          'anchors repeat while the rotating activities change across days):\n'
           '{\n'
           '  "overview": "2-3 sentence summary of the program",\n'
           '  "goals": ["goal 1", "goal 2", "goal 3"],\n'
@@ -177,10 +276,27 @@ class PlanService {
           '          "dayNumber": 1,\n'
           '          "tasks": [\n'
           '            {"id": "w1d1t1", "title": "Morning skincare routine", "category": "Morning", "description": "Cleanse, tone, moisturize, SPF"},\n'
-          '            {"id": "w1d1t2", "title": "Drink your hydration target", "category": "Lifestyle", "description": "2L of water"},\n'
-          '            {"id": "w1d1t3", "title": "20-minute movement", "category": "Fitness", "description": "Walk, stretch, or workout"},\n'
-          '            {"id": "w1d1t4", "title": "Grooming task", "category": "Appearance", "description": "Brows, hair, or grooming"},\n'
-          '            {"id": "w1d1t5", "title": "5-minute confidence exercise", "category": "Mindset", "description": "Affirmation or journaling"}\n'
+          '            {"id": "w1d1t2", "title": "Hydration goal", "category": "Lifestyle", "description": "Aim for 2L of water"},\n'
+          '            {"id": "w1d1t3", "title": "10-minute beginner workout", "category": "Fitness", "description": "Gentle, doable session"},\n'
+          '            {"id": "w1d1t4", "title": "Hair care + scalp massage", "category": "Appearance", "description": "Nourish hair and scalp"}\n'
+          '          ]\n'
+          '        },\n'
+          '        {\n'
+          '          "dayNumber": 2,\n'
+          '          "tasks": [\n'
+          '            {"id": "w1d2t1", "title": "Morning skincare routine", "category": "Morning", "description": "Cleanse, tone, moisturize, SPF"},\n'
+          '            {"id": "w1d2t2", "title": "Hydration goal", "category": "Lifestyle", "description": "Aim for 2L of water"},\n'
+          '            {"id": "w1d2t3", "title": "Posture & stretching routine", "category": "Fitness", "description": "Open the chest, reset posture"},\n'
+          '            {"id": "w1d2t4", "title": "Full-body moisturizing routine", "category": "Appearance", "description": "Body care for a soft glow"}\n'
+          '          ]\n'
+          '        },\n'
+          '        {\n'
+          '          "dayNumber": 3,\n'
+          '          "tasks": [\n'
+          '            {"id": "w1d3t1", "title": "Morning skincare routine", "category": "Morning", "description": "Cleanse, tone, moisturize, SPF"},\n'
+          '            {"id": "w1d3t2", "title": "Hydration goal", "category": "Lifestyle", "description": "Aim for 2L of water"},\n'
+          '            {"id": "w1d3t3", "title": "Recovery & stretching", "category": "Fitness", "description": "Rest and stretch to rebuild"},\n'
+          '            {"id": "w1d3t4", "title": "Self-care evening", "category": "Mindset", "description": "Tea, journaling, low lights"}\n'
           '          ]\n'
           '        }\n'
           '      ]\n'
@@ -188,7 +304,7 @@ class PlanService {
           '  ]\n'
           '}\n'
           '\n'
-          'RULES:\n'
+          'STRUCTURE RULES:\n'
           '- 4 weeks: Week 1 "Foundation" (days 1-7), Week 2 "Build" (days 8-14), '
           'Week 3 "Elevate" (days 15-21), Week 4 "Refine" (days 22-30).\n'
           '- Each week has exactly 7 days (last week has 9 days: 22-30).\n'
@@ -248,8 +364,13 @@ class PlanService {
     String? generatedImagePath,
   }) {
     try {
-      final weeks = _parseWeeks(json['weeks']);
+      var weeks = _parseWeeks(json['weeks']);
       if (weeks.isNotEmpty) {
+        // Post-generation validation: detect non-essential tasks that repeat
+        // on consecutive days (including full routines copied verbatim) and
+        // replace them with profile-derived alternatives. Essential daily
+        // habits (water, basic skincare + SPF, hygiene, sleep) are untouched.
+        weeks = ensurePlanVariety(weeks, profile);
         return GlowUpPlan(
           planId: planId,
           userId: userId,
@@ -277,62 +398,6 @@ class PlanService {
       faceScanSummary: faceScanSummary,
       generatedImagePath: generatedImagePath,
     );
-  }
-
-  /// Archives a specific plan (from history) without changing the active plan.
-  /// Used by the "Archive" action on past-plan cards.
-  Future<void> archivePlan(GlowUpPlan plan) async {
-    final prefs = await SharedPreferences.getInstance();
-    final historyRaw = prefs.getString(_localPlanHistoryKey) ?? '[]';
-    final history = (jsonDecode(historyRaw) as List<dynamic>? ?? const [])
-        .map(
-          (entry) =>
-              GlowUpPlan.fromJson(Map<String, dynamic>.from(entry as Map)),
-        )
-        .where((p) => p.planId != plan.planId)
-        .toList();
-    final archived = plan.copyWith(status: 'archived');
-    history.insert(0, archived);
-    await prefs.setString(
-      _localPlanHistoryKey,
-      jsonEncode(history.take(10).map((p) => p.toJson()).toList()),
-    );
-
-    try {
-      final userId = await _getUserId();
-      final db = FirebaseDatabase.instance;
-      await db
-          .ref('glowup_plans/$userId/history/${plan.planId}')
-          .set(archived.toJson())
-          .timeout(const Duration(seconds: 8));
-    } catch (_) {}
-  }
-
-  /// Makes an archived plan the active plan. The prior active plan is kept in
-  /// history, so users can safely switch between their saved journeys.
-  Future<GlowUpPlan> activatePlan(GlowUpPlan selected) async {
-    final current = await loadCurrentPlan();
-    final prefs = await SharedPreferences.getInstance();
-    final historyRaw = prefs.getString(_localPlanHistoryKey) ?? '[]';
-    final history = (jsonDecode(historyRaw) as List<dynamic>? ?? const [])
-        .map(
-          (entry) =>
-              GlowUpPlan.fromJson(Map<String, dynamic>.from(entry as Map)),
-        )
-        .where((plan) => plan.planId != selected.planId)
-        .toList();
-
-    if (current != null && current.planId != selected.planId) {
-      history.insert(0, current.copyWith(status: 'archived'));
-    }
-    await prefs.setString(
-      _localPlanHistoryKey,
-      jsonEncode(history.take(10).map((plan) => plan.toJson()).toList()),
-    );
-
-    final active = selected.copyWith(status: 'active');
-    await savePlan(active);
-    return active;
   }
 
   List<PlanWeek> _parseWeeks(dynamic weeksRaw) {
@@ -413,77 +478,14 @@ class PlanService {
     String? generatedImagePath,
   }) {
     final goal = profile.goal ?? 'Complete transformation';
-    final skinType = profile.skinType ?? 'Combination';
-    final exercise = profile.exerciseFrequency ?? '1-2 times a week';
     final vibe = profile.aesthetic ?? 'Clean girl';
     final lifestyle = profile.lifestyle ?? 'Balanced';
 
-    final weekTitles = ['Foundation', 'Build', 'Elevate', 'Refine'];
-    final weekGoals = [
-      'Build a consistent skincare and lifestyle foundation.',
-      'Strengthen your daily habits and increase the challenge.',
-      'Elevate your grooming, style, and confidence.',
-      'Refine your routine and lock in lasting results.',
-    ];
-
-    final weeks = <PlanWeek>[];
-    var globalDay = 1;
-
-    for (var w = 0; w < 4; w++) {
-      final daysInWeek = w == 3 ? 9 : 7;
-      final days = <PlanDay>[];
-
-      for (var d = 0; d < daysInWeek; d++) {
-        final dayNum = globalDay++;
-        final tasks = <PlanTask>[
-          PlanTask(
-            id: 'w${w + 1}d${d + 1}t1',
-            title: 'Morning skincare routine',
-            category: 'Morning',
-            description:
-                'Cleanse, tone, moisturize, and apply SPF. Focus on $skinType skin needs.',
-          ),
-          PlanTask(
-            id: 'w${w + 1}d${d + 1}t2',
-            title: 'Drink your hydration target',
-            category: 'Lifestyle',
-            description: 'Aim for 2L of water throughout the day.',
-          ),
-          PlanTask(
-            id: 'w${w + 1}d${d + 1}t3',
-            title: d % 2 == 0 ? '20-minute movement' : '15-minute walk',
-            category: 'Fitness',
-            description:
-                'Based on your $exercise baseline. Keep it enjoyable and consistent.',
-          ),
-          PlanTask(
-            id: 'w${w + 1}d${d + 1}t4',
-            title: 'Grooming task',
-            category: 'Appearance',
-            description:
-                'Brows, hair, or grooming detail to elevate your $vibe look.',
-          ),
-          PlanTask(
-            id: 'w${w + 1}d${d + 1}t5',
-            title: '5-minute confidence exercise',
-            category: 'Mindset',
-            description:
-                'Affirmation, journaling, or posture practice. Your glow starts within.',
-          ),
-        ];
-        days.add(PlanDay(dayNumber: dayNum, tasks: tasks));
-      }
-
-      weeks.add(
-        PlanWeek(
-          weekNumber: w + 1,
-          title: weekTitles[w],
-          goal: weekGoals[w],
-          focusAreas: const ['Skin', 'Hair', 'Fitness', 'Style', 'Lifestyle'],
-          days: days,
-        ),
-      );
-    }
+    // Deterministic, daily-varied plan built from the user's profile.
+    // Essential daily habits repeat; fitness, hair/body, skin treatments,
+    // and mindset/lifestyle activities rotate so no two consecutive days
+    // share the same non-essential routine.
+    final weeks = buildFallbackWeeks(profile);
 
     return GlowUpPlan(
       planId: planId,
