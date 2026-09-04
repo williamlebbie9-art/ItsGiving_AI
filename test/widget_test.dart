@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:its_giving_ai/app.dart';
 import 'package:its_giving_ai/core/providers/app_providers.dart';
 import 'package:its_giving_ai/core/services/auth_service.dart';
+import 'package:its_giving_ai/features/glowup/glow_up_generator_screen.dart';
+import 'package:its_giving_ai/features/glowup/glow_up_plan_screen.dart';
+import 'package:its_giving_ai/features/glowup/plan_models.dart';
 
 /// Minimal fake User for tests — avoids touching native Firebase.
 class TestUser implements User {
@@ -130,5 +134,216 @@ void main() {
     );
 
     await controller.close();
+  });
+
+  testWidgets('create new plan opens the generator flow', (tester) async {
+    final plan = GlowUpPlan(
+      planId: 'plan-1',
+      userId: 'user-1',
+      createdAt: DateTime.now(),
+      overview: 'Test plan',
+      weeks: [
+        PlanWeek(
+          weekNumber: 1,
+          title: 'Foundation',
+          goal: 'Build consistency',
+          focusAreas: const ['Skin', 'Hydration'],
+          days: [
+            PlanDay(
+              dayNumber: 1,
+              tasks: const [
+                PlanTask(
+                  id: 'w1d1t1',
+                  title: 'Hydration goal',
+                  category: 'Lifestyle',
+                  description: 'Drink a glass of water',
+                ),
+                PlanTask(
+                  id: 'w1d1t2',
+                  title: 'Morning skincare routine',
+                  category: 'Morning',
+                  description: 'Cleanse, tone, moisturize, SPF',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    SharedPreferences.setMockInitialValues({
+      'glowup_current_plan': plan.toJsonString(),
+      'glowup_last_scan_summary': 'Clear skin, balanced hydration.',
+      'glowup_last_scan_image_path': '/tmp/fake-image.png',
+    });
+
+    await tester.pumpWidget(
+      const MaterialApp(home: ProviderScope(child: GlowUpPlanScreen())),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.byTooltip('Create New Plan'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Create New Plan').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GlowUpGeneratorScreen), findsOneWidget);
+    expect(find.text('Explore Your Glow-Up'), findsOneWidget);
+  });
+
+  test('plan streak resets after 24 hours of missed tasks', () {
+    final now = DateTime.now();
+    final plan = GlowUpPlan(
+      planId: 'streak-check',
+      userId: 'user-1',
+      createdAt: now.subtract(const Duration(days: 2)),
+      weeks: [
+        PlanWeek(
+          weekNumber: 1,
+          title: 'Foundation',
+          goal: 'Build consistency',
+          focusAreas: const ['Skin'],
+          days: [
+            PlanDay(
+              dayNumber: 1,
+              tasks: const [
+                PlanTask(
+                  id: 'd1t1',
+                  title: 'Hydration goal',
+                  category: 'Lifestyle',
+                  description: 'Drink more water',
+                  isCompleted: true,
+                  completedAt: null,
+                ),
+              ],
+            ),
+            PlanDay(
+              dayNumber: 2,
+              tasks: const [
+                PlanTask(
+                  id: 'd2t1',
+                  title: 'Hydration goal',
+                  category: 'Lifestyle',
+                  description: 'Drink more water',
+                  isCompleted: true,
+                  completedAt: null,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final planWithOldCompletion = plan.copyWith(
+      weeks: [
+        PlanWeek(
+          weekNumber: 1,
+          title: 'Foundation',
+          goal: 'Build consistency',
+          focusAreas: const ['Skin'],
+          days: [
+            PlanDay(
+              dayNumber: 1,
+              tasks: [
+                const PlanTask(
+                  id: 'd1t1',
+                  title: 'Hydration goal',
+                  category: 'Lifestyle',
+                  description: 'Drink more water',
+                  isCompleted: true,
+                ).copyWith(
+                  completedAt: now.subtract(const Duration(hours: 30)),
+                ),
+              ],
+            ),
+            PlanDay(
+              dayNumber: 2,
+              tasks: [
+                const PlanTask(
+                  id: 'd2t1',
+                  title: 'Hydration goal',
+                  category: 'Lifestyle',
+                  description: 'Drink more water',
+                  isCompleted: true,
+                ).copyWith(
+                  completedAt: now.subtract(const Duration(hours: 25)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    expect(planWithOldCompletion.streak, 0);
+  });
+
+  test('consecutive plan days keep a different non-essential task mix', () {
+    final plan = GlowUpPlan(
+      planId: 'variation-check',
+      userId: 'user-1',
+      createdAt: DateTime.now(),
+      weeks: [
+        PlanWeek(
+          weekNumber: 1,
+          title: 'Foundation',
+          goal: 'Build consistency',
+          focusAreas: const ['Skin'],
+          days: [
+            PlanDay(
+              dayNumber: 1,
+              tasks: const [
+                PlanTask(
+                  id: 'd1t1',
+                  title: 'Morning skincare routine',
+                  category: 'Morning',
+                  description: 'Cleanse, tone, moisturize, SPF',
+                ),
+                PlanTask(
+                  id: 'd1t2',
+                  title: 'Hydration goal',
+                  category: 'Lifestyle',
+                  description: 'Drink more water',
+                ),
+                PlanTask(
+                  id: 'd1t3',
+                  title: 'Gentle walk',
+                  category: 'Fitness',
+                  description: 'A simple walk for energy',
+                ),
+              ],
+            ),
+            PlanDay(
+              dayNumber: 2,
+              tasks: const [
+                PlanTask(
+                  id: 'd2t1',
+                  title: 'Morning skincare routine',
+                  category: 'Morning',
+                  description: 'Cleanse, tone, moisturize, SPF',
+                ),
+                PlanTask(
+                  id: 'd2t2',
+                  title: 'Hydration goal',
+                  category: 'Lifestyle',
+                  description: 'Drink more water',
+                ),
+                PlanTask(
+                  id: 'd2t3',
+                  title: 'Gentle walk',
+                  category: 'Fitness',
+                  description: 'A simple walk for energy',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    expect(plan.hasMeaningfulDayVariation, isFalse);
   });
 }

@@ -1,5 +1,31 @@
 import 'dart:convert';
 
+bool _isEssentialDailyTask(String title) {
+  final normalized = title.toLowerCase();
+  const keywords = [
+    'water',
+    'hydrate',
+    'hydration',
+    'spf',
+    'sunscreen',
+    'skincare',
+    'cleanse',
+    'cleanser',
+    'moisturiz',
+    'hygiene',
+    'brush',
+    'floss',
+    'shower',
+    'face wash',
+    'wash your face',
+    'sleep',
+    'wind-down',
+    'wind down',
+    'bedtime',
+  ];
+  return keywords.any(normalized.contains);
+}
+
 /// A single task within a day of the glow-up plan.
 class PlanTask {
   const PlanTask({
@@ -220,16 +246,65 @@ class GlowUpPlan {
 
   double get progress => totalDays == 0 ? 0 : completedDays / totalDays;
 
-  int get streak {
-    var streak = 0;
-    for (final week in weeks) {
-      for (final day in week.days) {
-        if (day.isComplete) {
-          streak++;
-        } else {
-          return streak;
-        }
+  bool get hasMeaningfulDayVariation {
+    final orderedDays = weeks.expand((week) => week.days).toList();
+    if (orderedDays.length < 2) return true;
+
+    for (var index = 1; index < orderedDays.length; index++) {
+      final previous = orderedDays[index - 1].tasks
+          .where((task) => !_isEssentialDailyTask(task.title))
+          .map((task) => task.title.trim().toLowerCase())
+          .toSet();
+      final current = orderedDays[index].tasks
+          .where((task) => !_isEssentialDailyTask(task.title))
+          .map((task) => task.title.trim().toLowerCase())
+          .toSet();
+
+      if (previous.isEmpty || current.isEmpty) continue;
+      final anyVariation = previous
+          .union(current)
+          .any(
+            (value) => !previous.contains(value) || !current.contains(value),
+          );
+      if (!anyVariation) {
+        return false;
       }
+    }
+
+    return true;
+  }
+
+  int get streak {
+    final orderedDays = weeks.expand((week) => week.days).toList();
+    if (orderedDays.isEmpty) return 0;
+
+    var latestCompleteIndex = -1;
+    for (var index = orderedDays.length - 1; index >= 0; index--) {
+      if (orderedDays[index].isComplete) {
+        latestCompleteIndex = index;
+        break;
+      }
+    }
+
+    if (latestCompleteIndex < 0) return 0;
+
+    final latestCompletion = orderedDays[latestCompleteIndex].tasks
+        .where((task) => task.completedAt != null)
+        .map((task) => task.completedAt!)
+        .fold<DateTime?>(null, (latest, date) {
+          if (latest == null || date.isAfter(latest)) return date;
+          return latest;
+        });
+
+    final referenceTime = latestCompletion ?? DateTime.now();
+    if (DateTime.now().difference(referenceTime) > const Duration(hours: 24)) {
+      return 0;
+    }
+
+    var streak = 0;
+    for (var index = latestCompleteIndex; index >= 0; index--) {
+      if (!orderedDays[index].isComplete) break;
+      streak++;
     }
     return streak;
   }

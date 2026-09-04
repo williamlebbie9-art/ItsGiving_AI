@@ -99,8 +99,13 @@ class _PlanHistoryScreenState extends ConsumerState<PlanHistoryScreen> {
                   return _HistoryCard(
                     plan: plan,
                     onOpen: () async {
-                      await ref.read(planProvider.notifier).activatePlan(plan);
-                      if (context.mounted) Navigator.of(context).pop();
+                      await _openPlan(plan);
+                    },
+                    onResume: () async {
+                      await _openPlan(plan);
+                    },
+                    onArchive: () async {
+                      await _archivePlan(plan);
                     },
                   );
                 },
@@ -111,10 +116,17 @@ class _PlanHistoryScreenState extends ConsumerState<PlanHistoryScreen> {
 }
 
 class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.plan, required this.onOpen});
+  const _HistoryCard({
+    required this.plan,
+    required this.onOpen,
+    required this.onResume,
+    required this.onArchive,
+  });
 
   final GlowUpPlan plan;
   final Future<void> Function() onOpen;
+  final Future<void> Function() onResume;
+  final Future<void> Function() onArchive;
 
   @override
   Widget build(BuildContext context) {
@@ -181,12 +193,32 @@ class _HistoryCard extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
           ),
           const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onOpen,
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('Open'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onResume,
+                  icon: const Icon(Icons.restart_alt_rounded),
+                  label: const Text('Resume'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: onOpen,
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Open this plan'),
+            child: TextButton.icon(
+              onPressed: onArchive,
+              icon: const Icon(Icons.archive_rounded),
+              label: const Text('Archive'),
             ),
           ),
         ],

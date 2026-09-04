@@ -19,10 +19,8 @@ import 'plan_models.dart';
 ///    personalized to the user's onboarding + face-scan profile.
 
 /// Normalizes a title for duplication checks (lowercase, alphanumeric only).
-String _normalize(String value) => value
-    .toLowerCase()
-    .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
-    .trim();
+String _normalize(String value) =>
+    value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 
 /// Returns true when a task is a genuinely daily habit.
 ///
@@ -304,10 +302,7 @@ RotationPools buildRotationPools(GlowUserProfile profile) {
         'Facial oil + moisturizer massage',
         'Locks in hydration and supports your moisture barrier.',
       ),
-      PoolItem(
-        'Oatmeal calming mask',
-        'Soothes dry, tight-feeling skin.',
-      ),
+      PoolItem('Oatmeal calming mask', 'Soothes dry, tight-feeling skin.'),
     ];
   } else if (skinType.contains('sens')) {
     skin = const [
@@ -334,10 +329,7 @@ RotationPools buildRotationPools(GlowUserProfile profile) {
         'Gentle exfoliation session',
         'Polishes away dullness for a brighter glow.',
       ),
-      PoolItem(
-        'Hydrating sheet mask',
-        'An instant moisture + radiance boost.',
-      ),
+      PoolItem('Hydrating sheet mask', 'An instant moisture + radiance boost.'),
       PoolItem(
         'Facial massage + gua sha',
         'Boosts circulation and de-puffs naturally.',
@@ -381,10 +373,7 @@ RotationPools buildRotationPools(GlowUserProfile profile) {
         'Sleek ponytail or bun styling',
         'An effortless polished look that protects your hair ends.',
       ),
-      PoolItem(
-        'Brow tidy & shape',
-        'Neat, natural brows that frame the face.',
-      ),
+      PoolItem('Brow tidy & shape', 'Neat, natural brows that frame the face.'),
       PoolItem(
         'Scalp massage + hair oil',
         'Boosts circulation and nourishes the hairline.',
@@ -476,14 +465,8 @@ RotationPools buildRotationPools(GlowUserProfile profile) {
         'Clean part + sleek strands',
         'Effortless, low-maintenance polish.',
       ),
-      PoolItem(
-        'Low-effort polished bun',
-        'Tidy hair in under five minutes.',
-      ),
-      PoolItem(
-        'Scalp care + light massage',
-        'Simple, grounding hair ritual.',
-      ),
+      PoolItem('Low-effort polished bun', 'Tidy hair in under five minutes.'),
+      PoolItem('Scalp care + light massage', 'Simple, grounding hair ritual.'),
       PoolItem(
         'Subtle body glow routine',
         'Light moisturizing for a natural sheen.',
@@ -495,10 +478,7 @@ RotationPools buildRotationPools(GlowUserProfile profile) {
         'Hair care + scalp massage',
         'Nourish hair and scalp to support healthy growth.',
       ),
-      PoolItem(
-        'Brow tidy & shape',
-        'Clean, natural brows frame every look.',
-      ),
+      PoolItem('Brow tidy & shape', 'Clean, natural brows frame every look.'),
       PoolItem(
         'Hair mask or oil treatment',
         'Deep nourishment for shine and softness.',
@@ -639,16 +619,20 @@ RotationPools buildRotationPools(GlowUserProfile profile) {
     ]);
   }
   if (goal.contains('skin')) {
-    lifestyleOptions.add(const PoolItem(
-      'Skin-support food swap',
-      'Swap one snack for an antioxidant-rich option (berries, greens).',
-    ));
+    lifestyleOptions.add(
+      const PoolItem(
+        'Skin-support food swap',
+        'Swap one snack for an antioxidant-rich option (berries, greens).',
+      ),
+    );
   }
   if (goal.contains('hair')) {
-    lifestyleOptions.add(const PoolItem(
-      'Hair-support nutrition moment',
-      'Add a protein or biotin-rich food to one meal.',
-    ));
+    lifestyleOptions.add(
+      const PoolItem(
+        'Hair-support nutrition moment',
+        'Add a protein or biotin-rich food to one meal.',
+      ),
+    );
   }
 
   return RotationPools(
@@ -694,6 +678,32 @@ class _Rotator {
 /// Detects non-essential tasks that repeat on consecutive days (including
 /// full routines copied verbatim across days) and replaces them with
 /// profile-derived alternatives. Essential daily habits are left untouched.
+bool hasMeaningfulDayVariation(List<PlanWeek> weeks) {
+  final orderedDays = weeks.expand((week) => week.days).toList();
+  if (orderedDays.length < 2) return true;
+
+  for (var index = 1; index < orderedDays.length; index++) {
+    final previous = orderedDays[index - 1].tasks
+        .where((task) => !isEssentialDailyTask(task))
+        .map((task) => _normalize(task.title))
+        .toSet();
+    final current = orderedDays[index].tasks
+        .where((task) => !isEssentialDailyTask(task))
+        .map((task) => _normalize(task.title))
+        .toSet();
+
+    if (previous.isEmpty || current.isEmpty) continue;
+    final anyVariation = previous
+        .union(current)
+        .any((value) => !previous.contains(value) || !current.contains(value));
+    if (!anyVariation) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 List<PlanWeek> ensurePlanVariety(
   List<PlanWeek> weeks,
   GlowUserProfile profile,
@@ -731,10 +741,7 @@ List<PlanWeek> ensurePlanVariety(
         if (repeatedConsecutive || repeatedWithinDay) {
           final categoryKey = _categoryKey(task.category);
           final recent = recentByCategory[categoryKey] ?? const <String, int>{};
-          final avoid = <String>{
-            ...recent.keys,
-            ...seenThisDay,
-          };
+          final avoid = <String>{...recent.keys, ...seenThisDay};
           final rotator = rotators[categoryKey] ??= _Rotator(
             pools.poolFor(categoryKey),
           );
@@ -754,9 +761,10 @@ List<PlanWeek> ensurePlanVariety(
 
         newTasks.add(effective);
         lastSeenByTitle[_normalize(effective.title)] = globalPos;
-        (recentByCategory[_categoryKey(effective.category)] ??= {})[
-          _normalize(effective.title)
-        ] = globalPos;
+        (recentByCategory[_categoryKey(effective.category)] ??= {})[_normalize(
+              effective.title,
+            )] =
+            globalPos;
         seenThisDay.add(_normalize(effective.title));
       }
 
@@ -862,7 +870,8 @@ List<PlanWeek> buildFallbackWeeks(GlowUserProfile profile) {
           id: 'd${dayNumber}t3',
           title: slotAItem?.title ?? 'Fitness focus',
           category: 'Fitness',
-          description: slotAItem?.description ??
+          description:
+              slotAItem?.description ??
               (isRecovery
                   ? 'Rest and stretch so your body can rebuild stronger.'
                   : 'Move your body in a way that feels good for your level.'),
@@ -899,7 +908,8 @@ List<PlanWeek> buildFallbackWeeks(GlowUserProfile profile) {
           id: 'd${dayNumber}t5',
           title: lifestyleItem?.title ?? 'Screen-free wind-down',
           category: 'Lifestyle',
-          description: lifestyleItem?.description ?? 'Ease out of the day calmly.',
+          description:
+              lifestyleItem?.description ?? 'Ease out of the day calmly.',
         ),
       );
 

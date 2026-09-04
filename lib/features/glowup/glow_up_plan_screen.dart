@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'ai_face_scan_screen.dart';
+import 'glow_up_generator_screen.dart';
 import 'plan_history_screen.dart';
 import 'plan_models.dart';
 import 'plan_provider.dart';
@@ -23,11 +26,47 @@ class _GlowUpPlanScreenState extends ConsumerState<GlowUpPlanScreen> {
     });
   }
 
+  Future<void> _openNewPlanGenerator() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedSummary = prefs.getString('glowup_last_scan_summary');
+    final savedImagePath = prefs.getString('glowup_last_scan_image_path');
+
+    if ((savedSummary == null || savedSummary.isEmpty) &&
+        (savedImagePath == null || savedImagePath.isEmpty)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Complete a face scan first so your new plan has the right AI context.',
+          ),
+        ),
+      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AiFaceScanScreen()));
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GlowUpGeneratorScreen(
+          imagePath: savedImagePath ?? '',
+          faceScanSummary: savedSummary,
+        ),
+      ),
+    );
+  }
+
   /// Shows a confirmation dialog before creating a new plan.
   /// The current plan is archived, never destroyed.
   Future<void> _confirmNewPlan() async {
     final plan = ref.read(planProvider).plan;
-    if (plan == null) return;
+
+    if (plan == null) {
+      await _openNewPlanGenerator();
+      return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -55,9 +94,12 @@ class _GlowUpPlanScreenState extends ConsumerState<GlowUpPlanScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Your current plan was archived. Create a new one!'),
+          content: Text(
+            'Your current plan was archived. Creating a new one...',
+          ),
         ),
       );
+      await _openNewPlanGenerator();
     }
   }
 

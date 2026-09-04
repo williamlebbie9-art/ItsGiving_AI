@@ -16,7 +16,7 @@ class AuthService {
 
   /// Stream of auth state changes. Emits the current [User] or null.
   Stream<User?> get authStateChanges =>
-      _authStateStream ?? _auth!.authStateChanges();
+      _authStateStream ?? _auth?.authStateChanges() ?? const Stream.empty();
 
   /// The currently signed-in user, or null.
   User? get currentUser => _auth?.currentUser;
@@ -29,6 +29,13 @@ class AuthService {
 
   /// Signs in with Google.
   Future<User> signInWithGoogle() async {
+    final firebaseAuth = _auth;
+    if (firebaseAuth == null) {
+      throw const AuthException(
+        'Firebase authentication is not available in this environment.',
+      );
+    }
+
     try {
       final googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
@@ -41,7 +48,9 @@ class AuthService {
         idToken: googleAuth.idToken,
       );
 
-      final userCredential = await _auth!.signInWithCredential(credential);
+      final userCredential = await firebaseAuth.signInWithCredential(
+        credential,
+      );
       return userCredential.user!;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendlyAuthError(e));
@@ -52,6 +61,13 @@ class AuthService {
 
   /// Signs in with Apple.
   Future<User> signInWithApple() async {
+    final firebaseAuth = _auth;
+    if (firebaseAuth == null) {
+      throw const AuthException(
+        'Firebase authentication is not available in this environment.',
+      );
+    }
+
     try {
       final appleCredential = await SignInWithApple.getAppleIDCredential(
         scopes: [
@@ -65,7 +81,9 @@ class AuthService {
         accessToken: appleCredential.authorizationCode,
       );
 
-      final userCredential = await _auth!.signInWithCredential(oauthCredential);
+      final userCredential = await firebaseAuth.signInWithCredential(
+        oauthCredential,
+      );
       return userCredential.user!;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendlyAuthError(e));
@@ -79,8 +97,15 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    final firebaseAuth = _auth;
+    if (firebaseAuth == null) {
+      throw const AuthException(
+        'Firebase authentication is not available in this environment.',
+      );
+    }
+
     try {
-      final userCredential = await _auth!.createUserWithEmailAndPassword(
+      final userCredential = await firebaseAuth.createUserWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
@@ -95,8 +120,15 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    final firebaseAuth = _auth;
+    if (firebaseAuth == null) {
+      throw const AuthException(
+        'Firebase authentication is not available in this environment.',
+      );
+    }
+
     try {
-      final userCredential = await _auth!.signInWithEmailAndPassword(
+      final userCredential = await firebaseAuth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
@@ -111,8 +143,15 @@ class AuthService {
   /// This is the default flow after onboarding — no login screen is shown.
   /// If an anonymous user is already signed in, that user is returned.
   Future<User> signInAnonymously() async {
+    final firebaseAuth = _auth;
+    if (firebaseAuth == null) {
+      throw const AuthException(
+        'Firebase authentication is not available in this environment.',
+      );
+    }
+
     try {
-      final userCredential = await _auth!.signInAnonymously();
+      final userCredential = await firebaseAuth.signInAnonymously();
       return userCredential.user!;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendlyAuthError(e));
@@ -127,6 +166,13 @@ class AuthService {
   /// If the Google credential is already linked to another Firebase
   /// account, an [AuthException] is thrown and anonymous data is NOT deleted.
   Future<User> linkWithGoogle() async {
+    final firebaseAuth = _auth;
+    if (firebaseAuth == null) {
+      throw const AuthException(
+        'Firebase authentication is not available in this environment.',
+      );
+    }
+
     try {
       final googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
@@ -139,7 +185,7 @@ class AuthService {
         idToken: googleAuth.idToken,
       );
 
-      final userCredential = await _auth!.currentUser!.linkWithCredential(
+      final userCredential = await firebaseAuth.currentUser!.linkWithCredential(
         credential,
       );
       return userCredential.user!;
@@ -154,6 +200,13 @@ class AuthService {
   ///
   /// Preserves the existing anonymous UID and all associated data.
   Future<User> linkWithApple() async {
+    final firebaseAuth = _auth;
+    if (firebaseAuth == null) {
+      throw const AuthException(
+        'Firebase authentication is not available in this environment.',
+      );
+    }
+
     try {
       final appleCredential = await SignInWithApple.getAppleIDCredential(
         scopes: [
@@ -167,7 +220,7 @@ class AuthService {
         accessToken: appleCredential.authorizationCode,
       );
 
-      final userCredential = await _auth!.currentUser!.linkWithCredential(
+      final userCredential = await firebaseAuth.currentUser!.linkWithCredential(
         oauthCredential,
       );
       return userCredential.user!;
@@ -185,12 +238,19 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    final firebaseAuth = _auth;
+    if (firebaseAuth == null) {
+      throw const AuthException(
+        'Firebase authentication is not available in this environment.',
+      );
+    }
+
     try {
       final credential = EmailAuthProvider.credential(
         email: email.trim(),
         password: password,
       );
-      final userCredential = await _auth!.currentUser!.linkWithCredential(
+      final userCredential = await firebaseAuth.currentUser!.linkWithCredential(
         credential,
       );
       return userCredential.user!;
