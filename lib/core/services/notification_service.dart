@@ -52,6 +52,20 @@ class NotificationService {
     );
   }
 
+  /// Cancel a scheduled notification by id.
+  Future<void> cancel(int id) async {
+    try {
+      await _plugin.cancel(id);
+    } catch (_) {}
+  }
+
+  /// Cancel all scheduled notifications.
+  Future<void> cancelAll() async {
+    try {
+      await _plugin.cancelAll();
+    } catch (_) {}
+  }
+
   /// Schedule a daily reminder at the given hour and minute (local time).
   Future<void> scheduleDailyReminder({
     required int id,

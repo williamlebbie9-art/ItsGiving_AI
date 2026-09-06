@@ -97,34 +97,41 @@ class UserJourneyNotifier extends StateNotifier<UserJourneyState> {
 
           // Load the current plan and check streak to determine urgency.
           await _ref.read(planProvider.notifier).loadPlan();
-          final currentPlan = _ref.read(planProvider).plan;
-          if (currentPlan != null) {
-            final lastStreak = currentPlan.streak;
-            // If streak is 0 or <=2, send a stronger reminder.
-            final title = lastStreak <= 1
-                ? 'Your streak is at risk ✨'
-                : 'Keep your glow streak going';
-            final body = lastStreak <= 1
-                ? 'Complete today\'s plan to keep your streak alive.'
-                : 'You\'re on a $lastStreak-day streak — complete today\'s tasks!';
+          final prefs = await SharedPreferences.getInstance();
+          final notificationsEnabled =
+              prefs.getBool('glowup_notifications_enabled') ?? true;
+          final hour = prefs.getInt('glowup_notifications_hour') ?? 20;
+          final minute = prefs.getInt('glowup_notifications_minute') ?? 0;
 
-            // Schedule a daily reminder at 8pm local time.
-            await NotificationService.instance.scheduleDailyReminder(
-              id: 2001,
-              title: title,
-              body: body,
-              hour: 20,
-              minute: 0,
-            );
+          if (notificationsEnabled) {
+            final currentPlan = _ref.read(planProvider).plan;
+            if (currentPlan != null) {
+              final lastStreak = currentPlan.streak;
+              final title = lastStreak <= 1
+                  ? 'Your streak is at risk ✨'
+                  : 'Keep your glow streak going';
+              final body = lastStreak <= 1
+                  ? 'Complete today\'s plan to keep your streak alive.'
+                  : 'You\'re on a $lastStreak-day streak — complete today\'s tasks!';
+
+              await NotificationService.instance.scheduleDailyReminder(
+                id: 2001,
+                title: title,
+                body: body,
+                hour: hour,
+                minute: minute,
+              );
+            } else {
+              await NotificationService.instance.scheduleDailyReminder(
+                id: 2001,
+                title: 'Create your Glow-Up plan',
+                body: 'Finish onboarding to get your personalized 30-day plan.',
+                hour: hour,
+                minute: minute,
+              );
+            }
           } else {
-            // No plan: schedule a gentle daily nudge at 8pm to create one.
-            await NotificationService.instance.scheduleDailyReminder(
-              id: 2002,
-              title: 'Create your Glow-Up plan',
-              body: 'Finish onboarding to get your personalized 30-day plan.',
-              hour: 20,
-              minute: 0,
-            );
+            await NotificationService.instance.cancel(2001);
           }
         } catch (e) {
           debugPrint('[Notifications] Could not schedule reminders: $e');

@@ -1,8 +1,13 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/providers/onboarding_provider.dart';
 import 'core/providers/user_journey_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/services/notification_service.dart';
+// notification settings screen is available in features; not imported here to avoid unused import
 import 'features/glowup/enhanced_onboarding_screen.dart';
 import 'features/glowup/ai_face_scan_intro_flow.dart';
 import 'features/glowup/glow_app_shell.dart';
@@ -142,6 +147,53 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
     }
 
     // 3. AI plans are created on demand, never while the user waits to enter.
+    // Show the one-time notification opt-in prompt if not shown before.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      final prompted =
+          prefs.getBool('glowup_notifications_prompt_shown') ?? false;
+      final enabledPref = prefs.getBool('glowup_notifications_enabled');
+      if (!prompted && enabledPref == null) {
+        // Show a dialog asking the user to opt-in to daily reminders.
+        if (!mounted) return;
+        final result = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Enable reminders?'),
+            content: const Text(
+              'Would you like daily reminders to keep your glow streak alive?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Later'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Enable'),
+              ),
+            ],
+          ),
+        );
+        await prefs.setBool('glowup_notifications_prompt_shown', true);
+        if (result == true) {
+          await prefs.setBool('glowup_notifications_enabled', true);
+          await prefs.setInt('glowup_notifications_hour', 20);
+          await prefs.setInt('glowup_notifications_minute', 0);
+          try {
+            await NotificationService.instance.requestPermissions();
+            await NotificationService.instance.scheduleDailyReminder(
+              id: 2001,
+              title: 'Keep your glow streak going',
+              body: 'Complete today\'s tasks to keep your streak alive.',
+              hour: 20,
+              minute: 0,
+            );
+          } catch (_) {}
+        }
+      }
+    });
+
     return const GlowAppShell();
   }
 }
