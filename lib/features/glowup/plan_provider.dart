@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/app_providers.dart';
+import '../../core/services/notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'glow_models.dart';
 import 'plan_models.dart';
 import 'plan_service.dart';
@@ -137,6 +139,8 @@ class PlanNotifier extends StateNotifier<PlanState> {
     final plan = state.plan;
     if (plan == null) return;
 
+    final previousStreak = plan.streak;
+
     try {
       final updated = await _service.toggleTask(
         plan: plan,
@@ -144,6 +148,23 @@ class PlanNotifier extends StateNotifier<PlanState> {
         dayNumber: dayNumber,
         taskId: taskId,
       );
+      // Persist last known streak for app-start comparisons.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('glowup_last_known_streak', updated.streak);
+      } catch (_) {}
+
+      // If the user's streak just dropped to zero, send an immediate alert.
+      if (previousStreak > 0 && updated.streak == 0) {
+        try {
+          await NotificationService.instance.showNotification(
+            id: 3001,
+            title: 'Streak at risk',
+            body:
+                'You missed a day and your streak was reset. Open the app to continue your journey.',
+          );
+        } catch (_) {}
+      }
       state = state.copyWith(plan: updated);
     } catch (_) {
       // Keep the current state; persistence failed silently.

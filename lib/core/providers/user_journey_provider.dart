@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_providers.dart';
 import 'onboarding_provider.dart';
+import '../services/notification_service.dart';
+import '../../features/glowup/plan_provider.dart';
 
 /// Persistent user-journey state — completely separate from Firebase auth.
 ///
@@ -87,6 +89,46 @@ class UserJourneyNotifier extends StateNotifier<UserJourneyState> {
         // full intro flow complete — the full flow also requires plan + paywall.
         await _ref.read(usageProvider.notifier).load(uid);
 
+        // Initialize notifications and schedule daily reminder if needed.
+        try {
+          await NotificationService.instance.init();
+          // Request permissions (iOS/macOS) when the app initializes.
+          unawaited(NotificationService.instance.requestPermissions());
+
+          // Load the current plan and check streak to determine urgency.
+          await _ref.read(planProvider.notifier).loadPlan();
+          final currentPlan = _ref.read(planProvider).plan;
+          if (currentPlan != null) {
+            final lastStreak = currentPlan.streak;
+            // If streak is 0 or <=2, send a stronger reminder.
+            final title = lastStreak <= 1
+                ? 'Your streak is at risk ✨'
+                : 'Keep your glow streak going';
+            final body = lastStreak <= 1
+                ? 'Complete today\'s plan to keep your streak alive.'
+                : 'You\'re on a $lastStreak-day streak — complete today\'s tasks!';
+
+            // Schedule a daily reminder at 8pm local time.
+            await NotificationService.instance.scheduleDailyReminder(
+              id: 2001,
+              title: title,
+              body: body,
+              hour: 20,
+              minute: 0,
+            );
+          } else {
+            // No plan: schedule a gentle daily nudge at 8pm to create one.
+            await NotificationService.instance.scheduleDailyReminder(
+              id: 2002,
+              title: 'Create your Glow-Up plan',
+              body: 'Finish onboarding to get your personalized 30-day plan.',
+              hour: 20,
+              minute: 0,
+            );
+          }
+        } catch (e) {
+          debugPrint('[Notifications] Could not schedule reminders: $e');
+        }
         // 4. Restore subscription status (non-blocking).
         unawaited(_ref.read(subscriptionProvider.notifier).initialize(uid));
       }
