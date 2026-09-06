@@ -12,6 +12,7 @@ import '../../core/services/ai_client.dart';
 import 'glow_app_shell.dart';
 import 'glow_models.dart';
 import 'glow_up_plan_screen.dart';
+import 'ai_face_scan_screen.dart';
 import 'glowup_app.dart';
 import 'plan_provider.dart';
 
@@ -254,9 +255,39 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
   Widget build(BuildContext context) {
     return GlowScaffold(
       child: SafeArea(
-        child: _state == GenerationState.success && _generatedImage != null
-            ? _buildResult()
-            : _buildStylePicker(),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: () {
+                      // Allow users to skip plan creation and go to the face scan.
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AiFaceScanScreen(isIntroFlow: true),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.skip_next_rounded),
+                    label: const Text('Skip Plan'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: GlowColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child:
+                  _state == GenerationState.success && _generatedImage != null
+                  ? _buildResult()
+                  : _buildStylePicker(),
+            ),
+          ],
+        ),
       ),
     );
   }

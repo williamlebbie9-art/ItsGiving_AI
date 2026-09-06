@@ -1193,14 +1193,12 @@ class _HeroScoreMetric extends StatelessWidget {
   const _HeroScoreMetric({
     required this.label,
     required this.value,
-    this.suffix = '',
     this.prefix = '',
     this.accent,
   });
 
   final String label;
   final String value;
-  final String suffix;
   final String prefix;
   final Color? accent;
 
@@ -1226,13 +1224,7 @@ class _HeroScoreMetric extends StatelessWidget {
             children: [
               TextSpan(text: prefix),
               TextSpan(text: value),
-              TextSpan(
-                text: suffix,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: GlowColors.muted,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              // no suffix
             ],
           ),
         ),
