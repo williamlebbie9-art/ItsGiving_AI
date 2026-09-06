@@ -107,6 +107,48 @@ class UserJourneyNotifier extends StateNotifier<UserJourneyState> {
             final currentPlan = _ref.read(planProvider).plan;
             if (currentPlan != null) {
               final lastStreak = currentPlan.streak;
+
+              // If the user recently completed a day, check how long until the
+              // 24-hour streak window expires and notify if within the next 4h.
+              try {
+                final orderedDays = currentPlan.weeks
+                    .expand((w) => w.days)
+                    .toList();
+                DateTime? latestCompletion;
+                for (var d in orderedDays.reversed) {
+                  for (var t in d.tasks) {
+                    if (t.completedAt != null) {
+                      if (latestCompletion == null ||
+                          t.completedAt!.isAfter(latestCompletion)) {
+                        latestCompletion = t.completedAt!;
+                      }
+                    }
+                  }
+                  if (latestCompletion != null) break;
+                }
+
+                if (latestCompletion != null) {
+                  final elapsed = DateTime.now().difference(latestCompletion);
+                  final remaining = const Duration(hours: 24) - elapsed;
+                  if (remaining > Duration.zero &&
+                      remaining <= const Duration(hours: 4)) {
+                    final hours = remaining.inHours;
+                    final minutes = remaining.inMinutes % 60;
+                    final pretty = hours > 0
+                        ? '$hours h $minutes m'
+                        : '$minutes m';
+                    await NotificationService.instance.showNotification(
+                      id: 3002,
+                      title: 'Streak at risk ✨',
+                      body:
+                          'Your streak may reset in $pretty — complete today\'s tasks!',
+                    );
+                  }
+                }
+              } catch (e) {
+                debugPrint('[Notifications] streak urgency compute failed: $e');
+              }
+
               final title = lastStreak <= 1
                   ? 'Your streak is at risk ✨'
                   : 'Keep your glow streak going';
