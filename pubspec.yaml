@@ -95,8 +95,15 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-  assets:
-    - .env
+
+  # Note: .env was previously declared here as a bundled asset which caused
+  # builds to fail on CI (CodeMagic) because .env is gitignored and not
+  # present in the build workspace. The app already loads .env at runtime
+  # using flutter_dotenv and handles its absence. Removing the asset
+  # declaration prevents Flutter from trying to bundle a missing file while
+  # preserving runtime behavior. If you need environment values in CI, inject
+  # them via secure CI environment variables and/or --dart-define, not by
+  # committing secrets to the repo.
 
   # To add assets to your application, add an assets section, like this:
   # assets:
