@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
@@ -85,10 +86,16 @@ class AuthService {
         oauthCredential,
       );
       return userCredential.user!;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      throw AuthException(friendlyAppleAuthError(e));
+    } on SignInWithAppleNotSupportedException catch (e) {
+      throw AuthException(friendlyAppleAuthError(e));
+    } on SignInWithAppleCredentialsException catch (e) {
+      throw AuthException(friendlyAppleAuthError(e));
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendlyAuthError(e));
     } catch (e) {
-      throw AuthException('Apple sign-in failed: $e');
+      throw AuthException(friendlyAppleAuthError(e));
     }
   }
 
@@ -224,10 +231,16 @@ class AuthService {
         oauthCredential,
       );
       return userCredential.user!;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      throw AuthException(friendlyAppleAuthError(e));
+    } on SignInWithAppleNotSupportedException catch (e) {
+      throw AuthException(friendlyAppleAuthError(e));
+    } on SignInWithAppleCredentialsException catch (e) {
+      throw AuthException(friendlyAppleAuthError(e));
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendlyAuthError(e));
     } catch (e) {
-      throw AuthException('Could not link Apple account: $e');
+      throw AuthException(friendlyAppleAuthError(e));
     }
   }
 
@@ -290,6 +303,43 @@ class AuthService {
       default:
         return e.message ?? 'Authentication failed. Please try again.';
     }
+  }
+
+  String friendlyAppleAuthError(Object error) {
+    if (error is SignInWithAppleAuthorizationException) {
+      switch (error.code) {
+        case AuthorizationErrorCode.canceled:
+          return 'Apple sign-in was cancelled. Please try again.';
+        case AuthorizationErrorCode.failed:
+        case AuthorizationErrorCode.invalidResponse:
+        case AuthorizationErrorCode.notHandled:
+        case AuthorizationErrorCode.notInteractive:
+        case AuthorizationErrorCode.unknown:
+        case AuthorizationErrorCode.credentialExport:
+        case AuthorizationErrorCode.credentialImport:
+        case AuthorizationErrorCode.matchedExcludedCredential:
+          return 'Apple Sign In is not configured correctly for this app. Please ensure Sign in with Apple is enabled in your Apple Developer account and Xcode capabilities, then try again.';
+      }
+    }
+
+    if (error is SignInWithAppleNotSupportedException) {
+      return 'Apple Sign In is not available on this device or build.';
+    }
+
+    if (error is SignInWithAppleCredentialsException) {
+      return 'Apple Sign In could not access the required credentials. Please try again.';
+    }
+
+    if (error is PlatformException &&
+        error.code.startsWith('authorization-error')) {
+      return 'Apple Sign In is not configured correctly for this app. Please ensure Sign in with Apple is enabled in your Apple Developer account and Xcode capabilities, then try again.';
+    }
+
+    if (error is Exception) {
+      return 'Apple Sign In failed. Please check your Apple configuration and try again.';
+    }
+
+    return 'Apple Sign In failed. Please try again.';
   }
 }
 
