@@ -43,8 +43,6 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   firebase_core: ^3.13.0
-  firebase_database: ^11.3.0
-  flutter_dotenv: ^5.2.1
   http: ^1.2.2
   image_picker: ^1.1.2
   path_provider: ^2.1.5
@@ -59,8 +57,8 @@ dependencies:
   firebase_auth: ^5.7.0
   cloud_firestore: ^5.6.12
   purchases_flutter: ^10.9.0
-  flutter_local_notifications: ^13.0.0
-  timezone: ^0.9.0
+  flutter_local_notifications: ^19.5.0
+  timezone: ^0.10.0
 
 dev_dependencies:
   flutter_test:
@@ -104,14 +102,8 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # Note: .env was previously declared here as a bundled asset which caused
-  # builds to fail on CI (CodeMagic) because .env is gitignored and not
-  # present in the build workspace. The app already loads .env at runtime
-  # using flutter_dotenv and handles its absence. Removing the asset
-  # declaration prevents Flutter from trying to bundle a missing file while
-  # preserving runtime behavior. If you need environment values in CI, inject
-  # them via secure CI environment variables and/or --dart-define, not by
-  # committing secrets to the repo.
+  # Runtime .env files are intentionally not used. Release configuration is
+  # passed with --dart-define so it is available in the packaged IPA.
 
   # To add assets to your application, add an assets section, like this:
   # assets:

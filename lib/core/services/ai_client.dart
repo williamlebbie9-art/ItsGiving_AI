@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/decision_models.dart';
@@ -12,12 +11,27 @@ import '../models/decision_models.dart';
 class AiClient {
   const AiClient();
 
+  static const _provider = String.fromEnvironment(
+    'AI_PROVIDER',
+    defaultValue: 'firebase',
+  );
+  static const _decisionFunctionUrl = String.fromEnvironment(
+    'FIREBASE_FUNCTIONS_URL',
+    defaultValue:
+        'https://us-central1-decide-ai-89445.cloudfunctions.net/generateDecision',
+  );
+  static const _imageFunctionUrl = String.fromEnvironment(
+    'FIREBASE_IMAGE_FUNCTIONS_URL',
+    defaultValue:
+        'https://us-central1-decide-ai-89445.cloudfunctions.net/generateGlowUpImage',
+  );
+
   Future<DecisionResult> generate({
     required DecisionCategory category,
     required String prompt,
     required DecisionRequest request,
   }) async {
-    final provider = (dotenv.env['AI_PROVIDER'] ?? '').toLowerCase();
+    final provider = _provider.toLowerCase();
 
     // AI request started
     // ignore: avoid_print
@@ -43,18 +57,13 @@ class AiClient {
   /// Requests the dedicated plan schema. Unlike coach/scan responses this
   /// preserves the full plan object instead of forcing it into DecisionResult.
   Future<Map<String, dynamic>> generatePlan({required String prompt}) async {
-    final provider = (dotenv.env['AI_PROVIDER'] ?? '').toLowerCase();
+    final provider = _provider.toLowerCase();
     if (provider != 'firebase') {
       throw StateError('AI_PROVIDER must be firebase for plan generation.');
     }
 
-    final defaultLocalUrl = Platform.isAndroid
-        ? 'http://10.0.2.2:5001/decide-ai-89445/us-central1/generateDecision'
-        : 'http://127.0.0.1:5001/decide-ai-89445/us-central1/generateDecision';
-    final functionUrl =
-        dotenv.env['FIREBASE_FUNCTIONS_URL']?.trim().isNotEmpty == true
-        ? dotenv.env['FIREBASE_FUNCTIONS_URL']!.trim()
-        : defaultLocalUrl;
+    final functionUrl = _decisionFunctionUrl;
+
     final idToken = await _getIdToken();
 
     final response = await http
@@ -84,14 +93,7 @@ class AiClient {
     required String prompt,
     required DecisionRequest request,
   }) async {
-    final defaultLocalUrl = Platform.isAndroid
-        ? 'http://10.0.2.2:5001/decide-ai-89445/us-central1/generateDecision'
-        : 'http://127.0.0.1:5001/decide-ai-89445/us-central1/generateDecision';
-
-    final functionUrl =
-        dotenv.env['FIREBASE_FUNCTIONS_URL']?.trim().isNotEmpty == true
-        ? dotenv.env['FIREBASE_FUNCTIONS_URL']!.trim()
-        : defaultLocalUrl;
+    final functionUrl = _decisionFunctionUrl;
 
     final images = await _buildImagePayloads(imagePaths: request.imagePaths);
 
@@ -151,14 +153,7 @@ class AiClient {
     required String styleId,
     String? faceScanSummary,
   }) async {
-    final defaultLocalUrl = Platform.isAndroid
-        ? 'http://10.0.2.2:5001/decide-ai-89445/us-central1/generateGlowUpImage'
-        : 'http://127.0.0.1:5001/decide-ai-89445/us-central1/generateGlowUpImage';
-
-    final functionUrl =
-        dotenv.env['FIREBASE_IMAGE_FUNCTIONS_URL']?.trim().isNotEmpty == true
-        ? dotenv.env['FIREBASE_IMAGE_FUNCTIONS_URL']!.trim()
-        : defaultLocalUrl;
+    final functionUrl = _imageFunctionUrl;
 
     final bytes = await _readImage(imagePath);
     if (bytes == null) {

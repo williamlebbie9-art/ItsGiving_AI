@@ -32,18 +32,20 @@ This phase implements Products + Fashion first, with the full category framework
 
 The mobile app uses the Firebase provider only. Provider API keys stay in
 Firebase Secrets / the Functions environment and must never be placed in the
-mobile app's `.env` file.
+mobile app's build configuration.
 
-1. Copy `.env.example` to `.env`
-2. For local emulation, put provider keys in `functions/.secret.local`
-3. Run `npm --prefix functions install`
-4. Run `firebase emulators:start --only functions`
+1. For local emulation, put provider keys in `functions/.secret.local`
+2. Run `npm --prefix functions install`
+3. Run `firebase emulators:start --only functions`
 
-Example app `.env`:
+The production Function URLs are safe defaults in the app. Override them for
+local emulation or a staging project with Flutter build defines:
 
-```env
-AI_PROVIDER=firebase
-FIREBASE_FUNCTIONS_URL=
+```bash
+flutter run \
+  --dart-define=AI_PROVIDER=firebase \
+  --dart-define=FIREBASE_FUNCTIONS_URL=http://127.0.0.1:5001/decide-ai-89445/us-central1/generateDecision \
+  --dart-define=FIREBASE_IMAGE_FUNCTIONS_URL=http://127.0.0.1:5001/decide-ai-89445/us-central1/generateGlowUpImage
 ```
 
 Example `functions/.env`:

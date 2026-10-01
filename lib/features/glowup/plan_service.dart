@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -56,11 +56,15 @@ class PlanService {
     // Try Firebase for the freshest copy (background refresh).
     try {
       final userId = await _getUserId();
-      final db = FirebaseDatabase.instance;
-      final ref = db.ref('glowup_plans/$userId/current');
-      final snapshot = await ref.get().timeout(const Duration(seconds: 8));
-      if (snapshot.exists) {
-        final data = Map<String, dynamic>.from(snapshot.value as Map);
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('glowupPlans')
+          .doc('current')
+          .get()
+          .timeout(const Duration(seconds: 8));
+      if (snapshot.exists && snapshot.data() != null) {
+        final data = Map<String, dynamic>.from(snapshot.data()!);
         final remotePlan = GlowUpPlan.fromJson(data);
         await prefs.setString(_localPlanKey, remotePlan.toJsonString());
         return remotePlan;
@@ -79,9 +83,11 @@ class PlanService {
 
     try {
       final userId = await _getUserId();
-      final db = FirebaseDatabase.instance;
-      await db
-          .ref('glowup_plans/$userId/current')
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('glowupPlans')
+          .doc('current')
           .set(plan.toJson())
           .timeout(const Duration(seconds: 8));
     } catch (_) {
@@ -110,12 +116,15 @@ class PlanService {
 
       try {
         final userId = await _getUserId();
-        final db = FirebaseDatabase.instance;
-        await db
-            .ref('glowup_plans/$userId/history/${plan.planId}')
+        final user = FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
+        await user
+            .collection('glowupPlanHistory')
+            .doc(plan.planId)
             .set(archived.toJson())
             .timeout(const Duration(seconds: 8));
-        await db.ref('glowup_plans/$userId/current').remove();
+        await user.collection('glowupPlans').doc('current').delete();
       } catch (_) {}
     } catch (_) {}
   }
@@ -154,9 +163,11 @@ class PlanService {
 
     try {
       final userId = await _getUserId();
-      final db = FirebaseDatabase.instance;
-      await db
-          .ref('glowup_plans/$userId/history/${plan.planId}')
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('glowupPlanHistory')
+          .doc(plan.planId)
           .set(archived.toJson())
           .timeout(const Duration(seconds: 8));
     } catch (_) {}
