@@ -133,12 +133,37 @@ class PlanService {
   Future<List<GlowUpPlan>> loadPlanHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_localPlanHistoryKey) ?? '[]';
+    List<GlowUpPlan> localHistory;
     try {
-      return (jsonDecode(raw) as List<dynamic>? ?? const [])
+      localHistory = (jsonDecode(raw) as List<dynamic>? ?? const [])
           .map((e) => GlowUpPlan.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
     } catch (_) {
-      return const [];
+      localHistory = const [];
+    }
+
+    try {
+      final userId = await _getUserId();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('glowupPlanHistory')
+          .get()
+          .timeout(const Duration(seconds: 8));
+      final plansById = <String, GlowUpPlan>{
+        for (final plan in localHistory) plan.planId: plan,
+        for (final doc in snapshot.docs)
+          doc.id: GlowUpPlan.fromJson(doc.data()),
+      };
+      final history = plansById.values.toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      await prefs.setString(
+        _localPlanHistoryKey,
+        jsonEncode(history.map((plan) => plan.toJson()).toList()),
+      );
+      return history;
+    } catch (_) {
+      return localHistory;
     }
   }
 
@@ -197,6 +222,19 @@ class PlanService {
 
     final active = selected.copyWith(status: 'active');
     await savePlan(active);
+    try {
+      final userId = await _getUserId();
+      final user = FirebaseFirestore.instance.collection('users').doc(userId);
+      if (current != null && current.planId != selected.planId) {
+        await user
+            .collection('glowupPlanHistory')
+            .doc(current.planId)
+            .set(current.copyWith(status: 'archived').toJson());
+      }
+      await user.collection('glowupPlanHistory').doc(selected.planId).delete();
+    } catch (_) {
+      // The local history is still updated and will retry on a later sync.
+    }
     return active;
   }
 

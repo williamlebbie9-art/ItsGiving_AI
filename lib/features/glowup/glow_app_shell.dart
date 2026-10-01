@@ -13,6 +13,7 @@ import 'feature_cards_screen.dart';
 import 'glow_models.dart';
 import 'glow_up_plan_screen.dart';
 import 'inspiration_screen.dart';
+import 'image_generation_screen.dart';
 import 'paywall_screen.dart';
 import 'plan_models.dart';
 import 'plan_provider.dart';
@@ -475,6 +476,17 @@ class _DashboardQuickActions extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const AiFaceScanScreen()),
+                );
+              },
+            ),
+            _QuickActionButton(
+              icon: Icons.auto_awesome_rounded,
+              title: 'AI Looks',
+              subtitle: 'Create a preview',
+              color: const Color(0xFF9C7CFF),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ImageGenerationScreen()),
                 );
               },
             ),
