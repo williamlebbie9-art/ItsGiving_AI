@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
+import '../services/ai_client.dart';
 import '../services/auth_service.dart';
 import '../services/subscription_service.dart';
 import '../services/usage_service.dart';
@@ -41,6 +45,11 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
     await _service.initialize(firebaseUid: firebaseUid);
     final loaded = await _service.loadSubscriptionState();
     state = loaded.copyWith(isLoading: false);
+    // Best-effort server-side claim sync so Cloud Functions recognize premium
+    // users even when their ID token was minted before the claim existed.
+    if (loaded.isPremium) {
+      unawaited(_syncPremiumClaims());
+    }
   }
 
   /// Purchases a package.
@@ -49,6 +58,12 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
     try {
       final result = await _service.purchase(package);
       state = result.copyWith(isLoading: false);
+      if (result.isPremium) {
+        // Wait for the server-verified premium claim and a refreshed ID token
+        // so the very next AI request is billed against the premium
+        // entitlement instead of the free allowance.
+        await _syncPremiumClaims();
+      }
       return result.isPremium;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -62,6 +77,9 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
     try {
       final result = await _service.restorePurchases();
       state = result.copyWith(isLoading: false);
+      if (result.isPremium) {
+        await _syncPremiumClaims();
+      }
       return result.isPremium;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -73,6 +91,27 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   Future<void> logOut() async {
     await _service.logOut();
     state = const SubscriptionState();
+  }
+
+  /// Calls `syncPremiumStatus` so the server verifies the RevenueCat
+  /// entitlement and mints/clears the `premium` custom claim, then
+  /// force-refreshes the ID token so the claim is visible on the next AI
+  /// request to Cloud Functions. Best effort; never throws.
+  Future<void> _syncPremiumClaims() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final premium = await const AiClient().syncPremiumStatus();
+      if (!premium) return;
+      // Claims can take a moment to propagate; retry the refresh once.
+      try {
+        await user.getIdToken(true);
+      } catch (_) {
+        await user.getIdToken(true);
+      }
+    } catch (e) {
+      debugPrint('[Subscriptions] Premium claim sync failed: $e');
+    }
   }
 }
 

@@ -1,12 +1,10 @@
-import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/onboarding_provider.dart';
+import '../../core/services/glow_profile_repository.dart';
 import 'glow_models.dart';
 
 class EnhancedOnboardingScreen extends ConsumerStatefulWidget {
@@ -89,6 +87,13 @@ class _EnhancedOnboardingScreenState
         'Clean girl',
         'Soft girl',
         'Old money',
+        'Dark Feminine',
+        'Coquette',
+        'Baddie',
+        'Goth',
+        'Goth — Soft & Cute',
+        'Goth — Romantic, Sexy & Elegant',
+        'Goth Baddie — Bold & Confident',
         'Model-off-duty',
         'Feminine',
         'Sporty',
@@ -133,24 +138,34 @@ class _EnhancedOnboardingScreenState
     if (_isFinishing) return;
     setState(() => _isFinishing = true);
 
-    final prefs = await SharedPreferences.getInstance();
-
     String? joined(String key) {
       final values = _answers[key];
       if (values == null || values.isEmpty) return null;
       return values.join(', ');
     }
 
+    final aestheticValue = joined('glowup_vibe');
+    final goalValue = joined('glowup_goal');
+
     final profile = GlowUserProfile(
-      goal: joined('glowup_goal'),
+      goal: goalValue,
       skincareRoutine: joined('glowup_skincare'),
       exerciseFrequency: joined('glowup_exercise'),
       sleepSchedule: joined('glowup_sleep'),
-      aesthetic: joined('glowup_vibe'),
+      aesthetic: aestheticValue,
+      targetAesthetic: aestheticValue,
+      aestheticCombos: aestheticValue
+          ?.split(', ')
+          .where((value) => value.isNotEmpty)
+          .toList(),
+      beautyGoals: goalValue
+          ?.split(', ')
+          .where((value) => value.isNotEmpty)
+          .toList(),
       skinType: joined('glowup_skin_type'),
       lifestyle: joined('glowup_lifestyle'),
     );
-    await prefs.setString('glowup_profile', jsonEncode(profile.toJson()));
+    await GlowProfileRepository().save(profile);
 
     // Auto sign-in anonymously so the user can continue as a guest.
     // No login screen is shown — the anonymous UID becomes the single
@@ -183,9 +198,8 @@ class _EnhancedOnboardingScreenState
     setState(() => _isFinishing = true);
 
     // Save a minimal profile so the app has something to work with.
-    final prefs = await SharedPreferences.getInstance();
     final profile = const GlowUserProfile();
-    await prefs.setString('glowup_profile', jsonEncode(profile.toJson()));
+    await GlowProfileRepository().save(profile);
 
     // Try anonymous sign-in (non-blocking — never block skip).
     try {

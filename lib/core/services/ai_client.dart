@@ -25,6 +25,11 @@ class AiClient {
     defaultValue:
         'https://us-central1-decide-ai-89445.cloudfunctions.net/generateGlowUpImage',
   );
+  static const _premiumSyncFunctionUrl = String.fromEnvironment(
+    'FIREBASE_PREMIUM_SYNC_URL',
+    defaultValue:
+        'https://us-central1-decide-ai-89445.cloudfunctions.net/syncPremiumStatus',
+  );
 
   Future<DecisionResult> generate({
     required DecisionCategory category,
@@ -193,7 +198,11 @@ class AiClient {
     if (response.statusCode < 200 || response.statusCode > 299) {
       // ignore: avoid_print
       print('[AI] Image generation failed: ${response.statusCode}');
-      throw Exception('Image generation failed: ${response.statusCode}');
+      final message = _errorFromResponse(response);
+      if (response.statusCode == 403) {
+        throw AIQuotaException(message);
+      }
+      throw Exception(message);
     }
 
     final parsed = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
@@ -206,6 +215,41 @@ class AiClient {
     print('[AI] Image generation response received. bytes=${b64.length}');
 
     return base64Decode(b64);
+  }
+
+  /// Asks Cloud Functions to verify this user's RevenueCat entitlement
+  /// server-side and mint (or clear) the `premium` custom claim. Returns true
+  /// when the synced status is premium.
+  ///
+  /// Call after purchase/restore and at app start, then force-refresh the ID
+  /// token so the minted claim travels with the next AI request.
+  Future<bool> syncPremiumStatus() async {
+    final idToken = await _getIdToken();
+    if (idToken == null) return false;
+
+    final response = await http
+        .post(
+          Uri.parse(_premiumSyncFunctionUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: jsonEncode(<String, dynamic>{}),
+        )
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode < 200 || response.statusCode > 299) {
+      // ignore: avoid_print
+      print('[AI] Premium sync failed: ${response.statusCode}');
+      return false;
+    }
+
+    final payload = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final synced = payload['synced'] == true;
+    final premium = payload['premium'] == true;
+    // ignore: avoid_print
+    print('[AI] Premium sync completed. synced=$synced premium=$premium');
+    return premium;
   }
 
   /// Gets the current Firebase ID token for backend auth validation.
@@ -257,4 +301,25 @@ class AiClient {
     return 'image/jpeg';
   }
 
+  /// Extracts the server-provided `error` message from an error response body.
+  static String _errorFromResponse(http.Response response) {
+    try {
+      final payload =
+          Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      final error = payload['error'];
+      if (error is String && error.isNotEmpty) return error;
+    } catch (_) {}
+    return 'Request failed (${response.statusCode}).';
+  }
+}
+
+/// Thrown when a Cloud Function rejects a request because the user has hit
+/// their usage allowance (HTTP 403).
+class AIQuotaException implements Exception {
+  const AIQuotaException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

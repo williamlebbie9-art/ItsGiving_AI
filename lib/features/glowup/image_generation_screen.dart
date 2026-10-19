@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'glow_models.dart';
 import 'glow_up_generator_screen.dart';
 
 /// A direct entry point for AI look generation outside the face-scan flow.
@@ -17,6 +20,34 @@ class _ImageGenerationScreenState extends State<ImageGenerationScreen> {
   final _picker = ImagePicker();
   XFile? _image;
   bool _picking = false;
+  String? _selectedAesthetic;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileAesthetic();
+  }
+
+  Future<void> _loadProfileAesthetic() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('glowup_profile');
+    if (raw == null || raw.isEmpty) {
+      if (mounted) setState(() => _selectedAesthetic = null);
+      return;
+    }
+
+    try {
+      final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      final profile = GlowUserProfile.fromJson(map);
+      if (mounted) {
+        setState(() => _selectedAesthetic = profile.effectiveAesthetic);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _selectedAesthetic = null);
+      }
+    }
+  }
 
   Future<void> _pick(ImageSource source) async {
     if (_picking) return;
@@ -46,12 +77,20 @@ class _ImageGenerationScreenState extends State<ImageGenerationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = aestheticThemeFor(_selectedAesthetic);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('AI Look Generator'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('AI Look Generator'),
+        centerTitle: true,
+        backgroundColor: theme.backgroundStart,
+        foregroundColor: theme.label,
+        surfaceTintColor: Colors.transparent,
+      ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFFFF3FA), Color(0xFFFFE4F1), Color(0xFFEADFFF)],
+            colors: [theme.backgroundStart, theme.backgroundEnd],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -67,16 +106,26 @@ class _ImageGenerationScreenState extends State<ImageGenerationScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Choose a clear selfie, then pick a style to create your personalized glow-up preview.',
+                style: TextStyle(color: theme.label),
               ),
               const SizedBox(height: 24),
               Container(
                 height: 300,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.72),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0.72),
+                      theme.backgroundStart.withValues(alpha: 0.9),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: Colors.white),
+                  border: Border.all(
+                    color: theme.primary.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: _image == null
                     ? const Column(
@@ -89,7 +138,10 @@ class _ImageGenerationScreenState extends State<ImageGenerationScreen> {
                       )
                     : ClipRRect(
                         borderRadius: BorderRadius.circular(28),
-                        child: Image.file(File(_image!.path), fit: BoxFit.cover),
+                        child: Image.file(
+                          File(_image!.path),
+                          fit: BoxFit.cover,
+                        ),
                       ),
               ),
               const SizedBox(height: 16),
@@ -97,7 +149,15 @@ class _ImageGenerationScreenState extends State<ImageGenerationScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _picking ? null : () => _pick(ImageSource.camera),
+                      onPressed: _picking
+                          ? null
+                          : () => _pick(ImageSource.camera),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: theme.primary.withValues(alpha: 0.4),
+                        ),
+                        foregroundColor: theme.label,
+                      ),
                       icon: const Icon(Icons.camera_alt_rounded),
                       label: const Text('Take Photo'),
                     ),
@@ -105,7 +165,15 @@ class _ImageGenerationScreenState extends State<ImageGenerationScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _picking ? null : () => _pick(ImageSource.gallery),
+                      onPressed: _picking
+                          ? null
+                          : () => _pick(ImageSource.gallery),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: theme.primary.withValues(alpha: 0.4),
+                        ),
+                        foregroundColor: theme.label,
+                      ),
                       icon: const Icon(Icons.photo_library_rounded),
                       label: const Text('Choose Photo'),
                     ),
@@ -115,6 +183,10 @@ class _ImageGenerationScreenState extends State<ImageGenerationScreen> {
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: _image == null ? null : _continueToStyles,
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.primary,
+                  foregroundColor: Colors.white,
+                ),
                 icon: const Icon(Icons.auto_awesome_rounded),
                 label: const Text('Choose a Style'),
               ),

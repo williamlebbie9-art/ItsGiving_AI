@@ -147,6 +147,143 @@ class InspirationItem {
   final List<String> tips;
 }
 
+class AestheticTheme {
+  const AestheticTheme({
+    required this.primary,
+    required this.secondary,
+    required this.backgroundStart,
+    required this.backgroundEnd,
+    required this.pill,
+    required this.label,
+  });
+
+  final Color primary;
+  final Color secondary;
+  final Color backgroundStart;
+  final Color backgroundEnd;
+  final Color pill;
+  final Color label;
+}
+
+AestheticTheme aestheticThemeFor(String? aestheticName) {
+  final normalized = (aestheticName ?? 'Clean Girl').trim();
+
+  if (normalized.toLowerCase().startsWith('goth')) {
+    return const AestheticTheme(
+      primary: Color(0xFF33213A), secondary: Color(0xFF9B5274),
+      backgroundStart: Color(0xFFF8F2F8), backgroundEnd: Color(0xFFE9DFEA),
+      pill: Color(0xFFE7D5E1), label: Color(0xFF542947),
+    );
+  }
+
+  final vibe = vibes.firstWhere(
+    (entry) => entry.name.toLowerCase() == normalized.toLowerCase(),
+    orElse: () => vibes.first,
+  );
+
+  switch (vibe.name) {
+    case 'Clean Girl':
+      return const AestheticTheme(
+        primary: Color(0xFF7D8CFF),
+        secondary: Color(0xFFFF83C7),
+        backgroundStart: Color(0xFFF9F7FF),
+        backgroundEnd: Color(0xFFFFE7F3),
+        pill: Color(0xFFFFD8EA),
+        label: Color(0xFF6B5FE7),
+      );
+    case 'Soft Girl':
+      return const AestheticTheme(
+        primary: Color(0xFFFF8FB1),
+        secondary: Color(0xFFB8D9FF),
+        backgroundStart: Color(0xFFFFF1F6),
+        backgroundEnd: Color(0xFFEAF6FF),
+        pill: Color(0xFFFFE3EE),
+        label: Color(0xFFB05287),
+      );
+    case 'Old Money':
+      return const AestheticTheme(
+        primary: Color(0xFF8E6E4E),
+        secondary: Color(0xFFD4B38A),
+        backgroundStart: Color(0xFFF7F2EA),
+        backgroundEnd: Color(0xFFE8E0D5),
+        pill: Color(0xFFE7D7C1),
+        label: Color(0xFF725A3E),
+      );
+    case 'Dark Feminine':
+      return const AestheticTheme(
+        primary: Color(0xFF4A2948), secondary: Color(0xFFC47D9A),
+        backgroundStart: Color(0xFFFFF5F8), backgroundEnd: Color(0xFFF0E2EA),
+        pill: Color(0xFFF1D6E1), label: Color(0xFF6D3151),
+      );
+    case 'Coquette':
+      return const AestheticTheme(
+        primary: Color(0xFFF08CB6), secondary: Color(0xFFD7B2E8),
+        backgroundStart: Color(0xFFFFF5F9), backgroundEnd: Color(0xFFFCE7EF),
+        pill: Color(0xFFFFDDEB), label: Color(0xFFB0527B),
+      );
+    case 'Baddie':
+      return const AestheticTheme(
+        primary: Color(0xFFC13E6D), secondary: Color(0xFF3C2836),
+        backgroundStart: Color(0xFFFFF4F7), backgroundEnd: Color(0xFFF2E0E8),
+        pill: Color(0xFFF5D6E2), label: Color(0xFF892345),
+      );
+    case 'Model Off Duty':
+      return const AestheticTheme(
+        primary: Color(0xFF5C6B7A),
+        secondary: Color(0xFF9DA8B6),
+        backgroundStart: Color(0xFFF3F5F7),
+        backgroundEnd: Color(0xFFE9EEF3),
+        pill: Color(0xFFD9E3F0),
+        label: Color(0xFF485B70),
+      );
+    case 'Feminine':
+      return const AestheticTheme(
+        primary: Color(0xFFFF7DA8),
+        secondary: Color(0xFFF6C8D8),
+        backgroundStart: Color(0xFFFFF4F7),
+        backgroundEnd: Color(0xFFFFEAF0),
+        pill: Color(0xFFFFDDE7),
+        label: Color(0xFFC15476),
+      );
+    case 'Sporty':
+      return const AestheticTheme(
+        primary: Color(0xFF2F7D7A),
+        secondary: Color(0xFF8DD3C7),
+        backgroundStart: Color(0xFFF2FBFA),
+        backgroundEnd: Color(0xFFE5F7F3),
+        pill: Color(0xFFD5F2ED),
+        label: Color(0xFF2C6B67),
+      );
+    case 'Natural Beauty':
+      return const AestheticTheme(
+        primary: Color(0xFF6C9A72),
+        secondary: Color(0xFFC6D7B7),
+        backgroundStart: Color(0xFFF4F9F2),
+        backgroundEnd: Color(0xFFE8F4E7),
+        pill: Color(0xFFDCEED7),
+        label: Color(0xFF4A7650),
+      );
+    case 'Edgy':
+      return const AestheticTheme(
+        primary: Color(0xFF121212),
+        secondary: Color(0xFF6A5EF5),
+        backgroundStart: Color(0xFFF5F1FF),
+        backgroundEnd: Color(0xFFE7E1FF),
+        pill: Color(0xFFDCD4FF),
+        label: Color(0xFF2E2A5B),
+      );
+    default:
+      return const AestheticTheme(
+        primary: Color(0xFFFF5FA2),
+        secondary: Color(0xFFB69CFF),
+        backgroundStart: Color(0xFFFFF3FA),
+        backgroundEnd: Color(0xFFEADFFF),
+        pill: Color(0xFFFFD8EA),
+        label: Color(0xFFB14F88),
+      );
+  }
+}
+
 /// User profile for glow-up.
 class GlowUserProfile {
   const GlowUserProfile({
@@ -155,17 +292,107 @@ class GlowUserProfile {
     this.exerciseFrequency,
     this.sleepSchedule,
     this.aesthetic,
+    this.targetAesthetic,
+    this.currentLookSummary,
+    this.aestheticCombos,
+    this.beautyGoals,
     this.skinType,
     this.lifestyle,
   });
+
+  GlowUserProfile copyWith({
+    String? goal,
+    String? skincareRoutine,
+    String? exerciseFrequency,
+    String? sleepSchedule,
+    String? aesthetic,
+    String? targetAesthetic,
+    String? currentLookSummary,
+    List<String>? aestheticCombos,
+    List<String>? beautyGoals,
+    String? skinType,
+    String? lifestyle,
+  }) {
+    return GlowUserProfile(
+      goal: goal ?? this.goal,
+      skincareRoutine: skincareRoutine ?? this.skincareRoutine,
+      exerciseFrequency: exerciseFrequency ?? this.exerciseFrequency,
+      sleepSchedule: sleepSchedule ?? this.sleepSchedule,
+      aesthetic: aesthetic ?? this.aesthetic,
+      targetAesthetic: targetAesthetic ?? this.targetAesthetic,
+      currentLookSummary: currentLookSummary ?? this.currentLookSummary,
+      aestheticCombos: aestheticCombos ?? this.aestheticCombos,
+      beautyGoals: beautyGoals ?? this.beautyGoals,
+      skinType: skinType ?? this.skinType,
+      lifestyle: lifestyle ?? this.lifestyle,
+    );
+  }
 
   final String? goal;
   final String? skincareRoutine;
   final String? exerciseFrequency;
   final String? sleepSchedule;
   final String? aesthetic;
+
+  /// The user's desired aesthetic target. This is distinct from their
+  /// current appearance and should be the primary personalization driver.
+  final String? targetAesthetic;
+
+  /// Optional summary of what the user currently looks like based on the scan,
+  /// routine, and/or profile context.
+  final String? currentLookSummary;
+
+  /// Optional list of selected aesthetic combinations.
+  final List<String>? aestheticCombos;
+
+  /// Optional list of goals tied to the user's beauty journey.
+  final List<String>? beautyGoals;
+
   final String? skinType;
   final String? lifestyle;
+
+  /// Active aesthetic value used throughout the app. Keeps older saved data
+  /// compatible when only the legacy `aesthetic` field exists.
+  String get effectiveAesthetic {
+    for (final value in [targetAesthetic, aesthetic]) {
+      if (value != null && value.trim().isNotEmpty) {
+        return value;
+      }
+    }
+    return 'Clean girl';
+  }
+
+  String buildPersonalizationSummary() {
+    final details = <String>[];
+    if (goal != null && goal!.trim().isNotEmpty) {
+      details.add('Goal: $goal');
+    }
+    if (effectiveAesthetic.isNotEmpty) {
+      details.add('Target aesthetic: $effectiveAesthetic');
+    }
+    if (currentLookSummary != null && currentLookSummary!.trim().isNotEmpty) {
+      details.add('Current look: $currentLookSummary');
+    }
+    if (beautyGoals != null && beautyGoals!.isNotEmpty) {
+      details.add('Beauty goals: ${beautyGoals!.join(', ')}');
+    }
+    if (skinType != null && skinType!.trim().isNotEmpty) {
+      details.add('Skin type: $skinType');
+    }
+    if (skincareRoutine != null && skincareRoutine!.trim().isNotEmpty) {
+      details.add('Skincare: $skincareRoutine');
+    }
+    if (exerciseFrequency != null && exerciseFrequency!.trim().isNotEmpty) {
+      details.add('Exercise: $exerciseFrequency');
+    }
+    if (sleepSchedule != null && sleepSchedule!.trim().isNotEmpty) {
+      details.add('Sleep: $sleepSchedule');
+    }
+    if (lifestyle != null && lifestyle!.trim().isNotEmpty) {
+      details.add('Lifestyle: $lifestyle');
+    }
+    return details.join(' | ');
+  }
 
   Map<String, dynamic> toJson() => {
     'goal': goal,
@@ -173,17 +400,41 @@ class GlowUserProfile {
     'exerciseFrequency': exerciseFrequency,
     'sleepSchedule': sleepSchedule,
     'aesthetic': aesthetic,
+    'targetAesthetic': targetAesthetic ?? aesthetic,
+    'currentLookSummary': currentLookSummary,
+    'aestheticCombos': aestheticCombos ?? const [],
+    'beautyGoals': beautyGoals ?? const [],
     'skinType': skinType,
     'lifestyle': lifestyle,
   };
 
   factory GlowUserProfile.fromJson(Map<String, dynamic> json) {
+    final aestheticCombos = (json['aestheticCombos'] is List)
+        ? (json['aestheticCombos'] as List)
+              .map((value) => value.toString())
+              .where((value) => value.isNotEmpty)
+              .toList()
+        : const <String>[];
+
+    final beautyGoals = (json['beautyGoals'] is List)
+        ? (json['beautyGoals'] as List)
+              .map((value) => value.toString())
+              .where((value) => value.isNotEmpty)
+              .toList()
+        : const <String>[];
+
     return GlowUserProfile(
       goal: json['goal'] as String?,
       skincareRoutine: json['skincareRoutine'] as String?,
       exerciseFrequency: json['exerciseFrequency'] as String?,
       sleepSchedule: json['sleepSchedule'] as String?,
       aesthetic: json['aesthetic'] as String?,
+      targetAesthetic:
+          (json['targetAesthetic'] as String?) ??
+          (json['aesthetic'] as String?),
+      currentLookSummary: json['currentLookSummary'] as String?,
+      aestheticCombos: aestheticCombos.isEmpty ? null : aestheticCombos,
+      beautyGoals: beautyGoals.isEmpty ? null : beautyGoals,
       skinType: json['skinType'] as String?,
       lifestyle: json['lifestyle'] as String?,
     );
@@ -192,6 +443,83 @@ class GlowUserProfile {
 
 /// Available vibes.
 const vibes = [
+  Vibe(
+    name: 'Goth', icon: Icons.nightlight_round,
+    description: 'Expressive dark romance, individuality, and intentional style.',
+    outfitIdeas: ['Black lace layers', 'Velvet dress with boots', 'Tailored dark separates'],
+    hairIdeas: ['Glossy dark waves', 'Sleek straight hair', 'Textured updo'],
+    makeupIdeas: ['Defined liner', 'Smoky soft eye', 'Muted berry lip'],
+    nailIdeas: ['Black gloss', 'Deep plum', 'Chrome accent'],
+    accessories: ['Silver rings', 'Layered chains', 'Structured black bag'],
+    colors: ['Black', 'Charcoal', 'Burgundy', 'Deep plum'],
+    lifestyleHabits: ['Intentional self-expression', 'Wardrobe care', 'Creative rituals'],
+  ),
+  Vibe(
+    name: 'Goth — Soft & Cute', icon: Icons.favorite_rounded,
+    description: 'A soft, playful goth blend with romantic details and a gentle edge.',
+    outfitIdeas: ['Black cardigan with plaid skirt', 'Lace-trim top', 'Platform Mary Janes'],
+    hairIdeas: ['Soft waves with clips', 'Half-up ribbons', 'Gentle curtain fringe'],
+    makeupIdeas: ['Smudged soft liner', 'Rosy blush', 'Glossy berry lip'],
+    nailIdeas: ['Black with tiny hearts', 'Mauve gloss', 'Silver stars'],
+    accessories: ['Velvet choker', 'Heart locket', 'Ribbon clips'],
+    colors: ['Black', 'Dusty pink', 'Lilac', 'Silver'],
+    lifestyleHabits: ['Gentle routines', 'Creative styling', 'Playful self-care'],
+  ),
+  Vibe(
+    name: 'Goth — Romantic, Sexy & Elegant', icon: Icons.auto_awesome_rounded,
+    description: 'Elegant dark romance with refined silhouettes and confident glamour.',
+    outfitIdeas: ['Black satin slip dress', 'Tailored corset-inspired top', 'Long dark coat'],
+    hairIdeas: ['Polished waves', 'Sleek low chignon', 'Glossy blowout'],
+    makeupIdeas: ['Soft smoky eye', 'Defined lashes', 'Wine or nude lip'],
+    nailIdeas: ['Oxblood gloss', 'Black French tip', 'Deep plum'],
+    accessories: ['Delicate silver', 'Lace gloves', 'Structured clutch'],
+    colors: ['Black', 'Wine', 'Espresso', 'Antique silver'],
+    lifestyleHabits: ['Refined rituals', 'Posture practice', 'Thoughtful wardrobe edits'],
+  ),
+  Vibe(
+    name: 'Goth Baddie — Bold & Confident', icon: Icons.local_fire_department_rounded,
+    description: 'High-confidence goth glam with bold details and polished edge.',
+    outfitIdeas: ['Fitted black blazer', 'Statement boots', 'Coordinated dark set'],
+    hairIdeas: ['Sleek ponytail', 'Defined waves', 'Sharp middle part'],
+    makeupIdeas: ['Graphic liner', 'Defined brows', 'High-shine lip'],
+    nailIdeas: ['Black chrome', 'Deep red', 'Sharp almond'],
+    accessories: ['Statement hoops', 'Bold belt', 'Mini shoulder bag'],
+    colors: ['Black', 'Red', 'Chrome', 'Deep violet'],
+    lifestyleHabits: ['Confident presence', 'Outfit preparation', 'Strength and recovery'],
+  ),
+  Vibe(
+    name: 'Dark Feminine', icon: Icons.dark_mode_rounded,
+    description: 'Polished, powerful, and quietly dramatic.',
+    outfitIdeas: ['Tailored black trousers', 'Satin blouse', 'Structured blazer'],
+    hairIdeas: ['Glossy blowout', 'Sleek low bun', 'Defined waves'],
+    makeupIdeas: ['Soft sculpting', 'Defined liner', 'Berry or nude gloss'],
+    nailIdeas: ['Deep cherry', 'Chocolate brown', 'Glossy neutral'],
+    accessories: ['Gold hoops', 'Structured bag', 'Delicate watch'],
+    colors: ['Black', 'Espresso', 'Burgundy', 'Cream'],
+    lifestyleHabits: ['Intentional routines', 'Confident posture', 'Quality wardrobe care'],
+  ),
+  Vibe(
+    name: 'Coquette', icon: Icons.favorite_border_rounded,
+    description: 'Romantic, playful, and delicately feminine.',
+    outfitIdeas: ['Cardigan and skirt', 'Lace-trim cami', 'Ribbon details'],
+    hairIdeas: ['Soft curls', 'Ribbon half-up', 'Gentle braids'],
+    makeupIdeas: ['Rosy blush', 'Glossy lips', 'Soft shimmer'],
+    nailIdeas: ['Ballet pink', 'Tiny hearts', 'Pearl finish'],
+    accessories: ['Bows', 'Pearls', 'Dainty necklace'],
+    colors: ['Blush', 'Cream', 'Baby pink', 'Powder blue'],
+    lifestyleHabits: ['Romanticize routines', 'Gentle self-care', 'Creative styling'],
+  ),
+  Vibe(
+    name: 'Baddie', icon: Icons.local_fire_department_rounded,
+    description: 'Confident, polished glam with statement energy.',
+    outfitIdeas: ['Coordinated set', 'Fitted blazer', 'Statement denim'],
+    hairIdeas: ['Sleek ponytail', 'Defined waves', 'Polished braids'],
+    makeupIdeas: ['Defined brows', 'Soft glam', 'Glossy lip'],
+    nailIdeas: ['Fresh manicure', 'Almond shape', 'High-gloss finish'],
+    accessories: ['Statement hoops', 'Clean sneakers', 'Mini bag'],
+    colors: ['Black', 'White', 'Denim', 'Warm nude'],
+    lifestyleHabits: ['Prep outfits', 'Move with confidence', 'Protect sleep'],
+  ),
   Vibe(
     name: 'Clean Girl',
     icon: Icons.spa_rounded,

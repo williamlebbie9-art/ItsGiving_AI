@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app_providers.dart';
 import 'onboarding_provider.dart';
 import '../services/notification_service.dart';
+import '../services/glow_profile_repository.dart';
 import '../../features/glowup/plan_provider.dart';
 
 /// Persistent user-journey state — completely separate from Firebase auth.
@@ -85,6 +86,9 @@ class UserJourneyNotifier extends StateNotifier<UserJourneyState> {
           prefs.getBool('glowup_intro_flow_completed') ?? false;
 
       if (uid != null) {
+        // Hydrate the canonical account profile before screens read the local
+        // offline cache, preserving aesthetic context across devices.
+        await GlowProfileRepository().load();
         // Load usage for free-limit enforcement. This does NOT mark the
         // full intro flow complete — the full flow also requires plan + paywall.
         await _ref.read(usageProvider.notifier).load(uid);

@@ -116,9 +116,7 @@ class PlanService {
 
       try {
         final userId = await _getUserId();
-        final user = FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId);
+        final user = FirebaseFirestore.instance.collection('users').doc(userId);
         await user
             .collection('glowupPlanHistory')
             .doc(plan.planId)
@@ -255,18 +253,20 @@ class PlanService {
 
     try {
       final profileContext = _buildProfileContext(profile);
+      final currentAesthetic = profile.effectiveAesthetic;
       final faceContext = faceScanSummary != null && faceScanSummary.isNotEmpty
           ? 'Face scan analysis: $faceScanSummary\n'
           : '';
       final styleContext = styleName != null && styleName.isNotEmpty
           ? 'Chosen style direction: $styleName. Make grooming, hair, makeup, and outfit tasks support this aesthetic.\n'
-          : '';
+          : 'Chosen aesthetic direction: $currentAesthetic. Make grooming, hair, makeup, and outfit tasks support this aesthetic.\n';
 
       final prompt =
           'Create a personalized 30-day glow-up program for this user.\n'
           '$profileContext'
           '$faceContext'
           '$styleContext'
+          'The user\'s target aesthetic is "$currentAesthetic". Every task, outfit note, hair direction, skincare suggestion, and mood should feel aligned to this aesthetic. Use the aesthetic to shape the visual identity, product tone, lifestyle habits, and confidence cues while staying realistic.\n'
           '\n'
           'IMPORTANT: This is a MULTI-DAY PROGRAM, NOT one routine copied over '
           'and over. You are designing 30 DISTINCT days that progress toward '
@@ -504,6 +504,7 @@ class PlanService {
   }
 
   String _buildProfileContext(GlowUserProfile profile) {
+    final targetAesthetic = profile.effectiveAesthetic;
     return [
       if (profile.goal != null) 'Goal: ${profile.goal}',
       if (profile.skincareRoutine != null)
@@ -511,7 +512,15 @@ class PlanService {
       if (profile.exerciseFrequency != null)
         'Exercise: ${profile.exerciseFrequency}',
       if (profile.sleepSchedule != null) 'Sleep: ${profile.sleepSchedule}',
-      if (profile.aesthetic != null) 'Desired vibe: ${profile.aesthetic}',
+      'Desired vibe: $targetAesthetic',
+      if (profile.currentLookSummary != null &&
+          profile.currentLookSummary!.trim().isNotEmpty)
+        'Current look: ${profile.currentLookSummary}',
+      if (profile.aestheticCombos != null &&
+          profile.aestheticCombos!.isNotEmpty)
+        'Aesthetic combos: ${profile.aestheticCombos!.join(', ')}',
+      if (profile.beautyGoals != null && profile.beautyGoals!.isNotEmpty)
+        'Beauty goals: ${profile.beautyGoals!.join(', ')}',
       if (profile.skinType != null) 'Skin type: ${profile.skinType}',
       if (profile.lifestyle != null) 'Lifestyle: ${profile.lifestyle}',
     ].join('\n');
@@ -527,7 +536,7 @@ class PlanService {
     String? generatedImagePath,
   }) {
     final goal = profile.goal ?? 'Complete transformation';
-    final vibe = profile.aesthetic ?? 'Clean girl';
+    final vibe = profile.effectiveAesthetic;
     final lifestyle = profile.lifestyle ?? 'Balanced';
 
     // Deterministic, daily-varied plan built from the user's profile.

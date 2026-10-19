@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/providers/app_providers.dart';
 import '../../core/providers/user_journey_provider.dart';
 import '../../core/services/ai_client.dart';
 import 'glow_app_shell.dart';
@@ -14,6 +15,7 @@ import 'glow_models.dart';
 import 'glow_up_plan_screen.dart';
 import 'ai_face_scan_screen.dart';
 import 'glowup_app.dart';
+import 'paywall_screen.dart';
 import 'plan_provider.dart';
 
 /// A style/look option the user can generate.
@@ -54,6 +56,48 @@ const glowUpStyles = [
     emoji: '🖤',
     color: Color(0xFF2E2140),
     description: 'Elegant, sophisticated, refined styling.',
+  ),
+  GlowUpStyle(
+    id: 'dark-feminine',
+    name: 'Dark Feminine',
+    color: Color(0xFF4A2948),
+    emoji: '🖤',
+    description: 'Polished, powerful, and softly dramatic.',
+  ),
+  GlowUpStyle(
+    id: 'goth-soft-cute',
+    name: 'Goth — Soft & Cute',
+    emoji: '♥',
+    color: Color(0xFF8B5B83),
+    description: 'Soft goth romance with playful, delicate details.',
+  ),
+  GlowUpStyle(
+    id: 'goth-romantic-elegant',
+    name: 'Goth — Romantic, Sexy & Elegant',
+    emoji: '✦',
+    color: Color(0xFF3E263F),
+    description: 'Refined dark romance and elegant, confident glamour.',
+  ),
+  GlowUpStyle(
+    id: 'goth-baddie',
+    name: 'Goth Baddie — Bold & Confident',
+    emoji: '◆',
+    color: Color(0xFF7B1F3F),
+    description: 'Bold goth glam with sharp, polished confidence.',
+  ),
+  GlowUpStyle(
+    id: 'coquette',
+    name: 'Coquette',
+    color: Color(0xFFF08CB6),
+    emoji: '🎀',
+    description: 'Romantic details, bows, and delicate femininity.',
+  ),
+  GlowUpStyle(
+    id: 'baddie',
+    name: 'Baddie',
+    color: Color(0xFFC13E6D),
+    emoji: '🔥',
+    description: 'Confident glam, defined details, and statement style.',
   ),
   GlowUpStyle(
     id: 'glam',
@@ -119,6 +163,15 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
   bool _buildingPlan = false;
 
   Future<void> _generate(GlowUpStyle style) async {
+    // Guard the monthly image allowance before any network work. The server is
+    // authoritative; this pre-check routes exhausted free users to the paywall
+    // instead of a 403 error.
+    final blockedReason = _checkImageAllowed();
+    if (blockedReason != null) {
+      _showPaywall(blockedReason);
+      return;
+    }
+
     setState(() {
       _selectedStyle = style;
       _state = GenerationState.preparing;
@@ -142,13 +195,45 @@ class _GlowUpGeneratorScreenState extends ConsumerState<GlowUpGeneratorScreen> {
         _generatedImage = bytes;
         _state = GenerationState.success;
       });
+      // Resync the usage mirror with the server record so the next pre-check
+      // reflects the generation that was just consumed.
+      final uid = ref.read(authServiceProvider).currentUid;
+      if (uid != null) {
+        await ref.read(usageProvider.notifier).load(uid);
+      }
     } catch (e) {
       if (!mounted) return;
+      if (e is AIQuotaException) {
+        // The server rejected the request because the monthly allowance was
+        // exhausted between the pre-check and the generate call.
+        _showPaywall(e.message);
+        return;
+      }
       setState(() {
         _errorMessage = e.toString();
         _state = GenerationState.error;
       });
     }
+  }
+
+  /// Returns a blocking reason when the user cannot generate another glow-up
+  /// image this month, or null when a generation is allowed.
+  String? _checkImageAllowed() {
+    final usage = ref.read(usageProvider);
+    final isPremium = ref.read(subscriptionProvider).isPremium;
+    final canGenerate = ref
+        .read(usageServiceProvider)
+        .canGenerateGlowUpImage(usage: usage, isPremium: isPremium);
+    if (canGenerate) return null;
+    return isPremium
+        ? "You've reached your 20 monthly image generations. New ones unlock next month."
+        : "You've used your free image generation for this month. Upgrade to Premium for 20 per month.";
+  }
+
+  void _showPaywall(String reason) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PaywallScreen(triggerReason: reason)),
+    );
   }
 
   /// Persists the generated preview image to app documents storage and

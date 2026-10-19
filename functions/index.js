@@ -4,6 +4,7 @@ const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 
 const openAiApiKey = defineSecret("OPENAI_API_KEY");
+const revenueCatApiKey = defineSecret("REVENUECAT_API_KEY");
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -17,6 +18,12 @@ const FREE_LIMITS = {
   glowUpImage: 1,
 };
 const ALLOWED_OPERATIONS = new Set(Object.keys(FREE_LIMITS));
+
+// Premium usage limits. Operations not listed here are unlimited for premium.
+const PREMIUM_LIMITS = {
+  // Glow-up image generations reset at the start of every calendar month.
+  glowUpImage: 20,
+};
 const MAX_PROMPT_LENGTH = 14000;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
@@ -142,8 +149,102 @@ async function checkAccess(uid, operation, isPremium) {
 }
 
 function isPremiumUser(decodedToken) {
-  // This claim must be set by a trusted RevenueCat webhook/admin service.
+  // The premium claim is minted server-side by exports.syncPremiumStatus, which
+  // verifies the user's RevenueCat entitlement before writing the claim — it is
+  // never trusted from the client.
   return decodedToken?.premium === true;
+}
+
+/**
+ * UTC "YYYY-MM" key identifying the current monthly quota window. UTC keeps the
+ * window consistent between the server and the app.
+ */
+function currentMonthKey() {
+  const now = new Date();
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  return `${now.getUTCFullYear()}-${month}`;
+}
+
+/**
+ * Atomically checks the monthly glow-up image allowance and reserves a slot
+ * before the expensive AI call runs. The check + reservation happen inside one
+ * Firestore transaction so two parallel requests can never oversubscribe the
+ * monthly image limit.
+ *
+ * The counter is stored alongside the month it belongs to; when a new calendar
+ * month begins the stored count is treated as zero (monthly reset).
+ *
+ * Returns { allowed: true } or { allowed: false, reason }.
+ */
+async function grantGlowUpImage(uid, isPremium) {
+  const ref = admin
+    .firestore()
+    .collection("users")
+    .doc(uid)
+    .collection("usage")
+    .doc("counts");
+  try {
+    return await admin.firestore().runTransaction(async (tx) => {
+      const doc = await tx.get(ref);
+      const data = doc.exists ? doc.data() : {};
+      const month = currentMonthKey();
+      const count =
+        data.glowUpImageMonth === month ? data.glowUpImageCount || 0 : 0;
+      const limit = isPremium
+        ? PREMIUM_LIMITS.glowUpImage
+        : FREE_LIMITS.glowUpImage;
+
+      if (count >= limit) {
+        return {
+          allowed: false,
+          reason: isPremium
+            ? "You've reached your 20 monthly image generations. Try again next month."
+            : "You've used your 1 free image generation for this month. Upgrade to Premium for 20 per month.",
+        };
+      }
+
+      tx.set(
+        ref,
+        { glowUpImageCount: count + 1, glowUpImageMonth: month },
+        { merge: true },
+      );
+      return { allowed: true };
+    });
+  } catch (e) {
+    logger.warn("Could not reserve glowUpImage slot", { error: e.message });
+    return {
+      allowed: false,
+      reason: "Could not verify your image allowance. Please try again.",
+    };
+  }
+}
+
+/**
+ * Releases a previously reserved glow-up image slot after a failed generation
+ * so the user is never charged for an image that was never created. Best
+ * effort only; never throws.
+ */
+async function refundGlowUpImage(uid) {
+  const ref = admin
+    .firestore()
+    .collection("users")
+    .doc(uid)
+    .collection("usage")
+    .doc("counts");
+  try {
+    await admin.firestore().runTransaction(async (tx) => {
+      const doc = await tx.get(ref);
+      if (!doc.exists) return;
+      const data = doc.data();
+      const month = currentMonthKey();
+      const count =
+        data.glowUpImageMonth === month ? data.glowUpImageCount || 0 : 0;
+      if (count <= 0) return;
+      tx.update(ref, { glowUpImageCount: count - 1 });
+    });
+  } catch (e) {
+    logger.warn("Could not refund glowUpImage slot", { error: e.message });
+  }
 }
 
 function validateImages(images) {
@@ -286,11 +387,16 @@ exports.generateGlowUpImage = onRequest(
       res.status(400).json({ error: 'Provide a JPEG, PNG, or WebP image under 4 MB.' });
       return;
     }
-    const access = await checkAccess(uid, 'glowUpImage', isPremiumUser(decodedToken));
+    // Reserve a monthly image slot BEFORE the expensive AI call so parallel
+    // requests cannot oversubscribe the allowance. The reservation is refunded
+    // if the generation fails, so it only consumes quota on success.
+    const access = await grantGlowUpImage(uid, isPremiumUser(decodedToken));
+    let imageSlotReserved = false;
     if (!access.allowed) {
       res.status(403).json({ error: access.reason });
       return;
     }
+    imageSlotReserved = true;
 
     const style = glowUpStyles[styleId] || glowUpStyles["clean-girl"];
     logger.info("generateGlowUpImage request", {
@@ -345,7 +451,9 @@ exports.generateGlowUpImage = onRequest(
       }
 
       logger.info("OpenAI image response received", { status: response.status });
-      await incrementUsage(uid, 'glowUpImageCount');
+      // The slot was reserved before the call; a successful generation keeps
+      // that reservation as the final usage record.
+      imageSlotReserved = false;
       res.status(200).json({
         image: b64Json,
         mimeType: "image/png",
@@ -353,6 +461,8 @@ exports.generateGlowUpImage = onRequest(
         styleName: style.name,
       });
     } catch (error) {
+      // Refund the reserved slot so failed generations never consume quota.
+      if (imageSlotReserved) await refundGlowUpImage(uid);
       logger.error("generateGlowUpImage failed", error);
       res.status(500).json({
         error: "Image generation failed.",
@@ -386,6 +496,30 @@ const glowUpStyles = {
     color: "#2E2140",
     generationPrompt:
       "Old Money aesthetic: elegant, sophisticated styling with refined sleek blowout or low chignon, minimal classic makeup, cashmere sweaters and tailored trousers, silk scarves, gold watch, timeless quiet luxury.",
+  },
+  "dark-feminine": {
+    id: "dark-feminine", name: "Dark Feminine", emoji: "🖤",
+    generationPrompt: "Dark Feminine aesthetic: refined dark neutrals, elegant fitted silhouettes, glossy healthy hair, softly defined makeup, rich berry or nude lip, delicate gold accents, poised confident presentation.",
+  },
+  "goth-soft-cute": {
+    id: "goth-soft-cute", name: "Goth — Soft & Cute", emoji: "♥",
+    generationPrompt: "Soft Cute Goth aesthetic: preserve identity while styling with black and dusty-pink layers, lace or ribbon details, soft waves, delicate silver accessories, rosy blush, soft smudged liner, glossy berry lips, and a playful romantic goth mood.",
+  },
+  "goth-romantic-elegant": {
+    id: "goth-romantic-elegant", name: "Goth — Romantic, Sexy & Elegant", emoji: "✦",
+    generationPrompt: "Romantic Sexy Elegant Goth aesthetic: preserve identity while styling with refined black satin or velvet, elegant tailored silhouette, polished waves or low chignon, soft smoky eye, defined lashes, wine or nude lip, delicate silver accents, and poised dark-romantic confidence.",
+  },
+  "goth-baddie": {
+    id: "goth-baddie", name: "Goth Baddie — Bold & Confident", emoji: "◆",
+    generationPrompt: "Goth Baddie aesthetic: preserve identity while styling with polished black statement pieces, sharp sleek hair or defined waves, graphic but wearable eyeliner, defined brows, high-shine lip, chrome or silver accessories, and bold self-assured goth glam.",
+  },
+  coquette: {
+    id: "coquette", name: "Coquette", emoji: "🎀",
+    generationPrompt: "Coquette aesthetic: romantic feminine styling with bows, lace and pearl details, soft waves, rosy blush, glossy lips, delicate pastel or cream layers, and a playful polished presentation.",
+  },
+  baddie: {
+    id: "baddie", name: "Baddie", emoji: "🔥",
+    generationPrompt: "Baddie aesthetic: confident polished glam with sleek hair or defined waves, softly sculpted makeup, gloss, coordinated statement outfit, clean accessories, and an empowered self-assured presentation.",
   },
   glam: {
     id: "glam",
@@ -721,3 +855,101 @@ function stripJsonFence(raw) {
   }
   return lines.join("\n").trim();
 }
+/**
+ * G1 premium-claim pipeline.
+ *
+ * The client calls this after purchase/restore (and at app start) to verify
+ * the RevenueCat entitlement SERVER-side and mint (or clear) the `premium`
+ * custom claim on the caller's own Firebase user record. A claim can only be
+ * minted when RevenueCat confirms an active entitlement, so a free user cannot
+ * self-promote.
+ *
+ * POST /syncPremiumStatus  ->  { premium: boolean, synced: boolean }
+ * Auth: Firebase ID token (Bearer). Only the caller's own UID is mutated.
+ */
+const PREMIUM_ENTITLEMENT_ID = "premium";
+
+/**
+ * Returns true when the RevenueCat subscriber for `uid` has an active `premium`
+ * entitlement, false when the entitlement is absent/expired, and null when the
+ * lookup could not be completed (e.g. RevenueCat is not configured).
+ */
+async function revenueCatHasPremium(uid) {
+  const apiKey =
+    revenueCatApiKey.value() || process.env.REVENUECAT_API_KEY || "";
+  if (!apiKey) return null;
+
+  let response;
+  try {
+    response = await fetch(
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(uid)}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+        },
+      },
+    );
+  } catch (e) {
+    logger.warn("RevenueCat lookup failed", { error: e.message, uid });
+    return null;
+  }
+
+  if (!response.ok) {
+    logger.warn("RevenueCat lookup failed", { status: response.status, uid });
+    return null;
+  }
+
+  try {
+    const payload = await response.json();
+    const entitlement =
+      payload?.subscriber?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID];
+    if (!entitlement) return false;
+    const expires = entitlement.expires_date;
+    if (!expires) return true; // Lifetime entitlement.
+    return new Date(expires).getTime() > Date.now();
+  } catch (e) {
+    logger.warn("RevenueCat response malformed", { error: e.message, uid });
+    return null;
+  }
+}
+
+exports.syncPremiumStatus = onRequest(
+  {
+    cors: true,
+    invoker: "public",
+    secrets: [revenueCatApiKey],
+    region: process.env.AI_FUNCTION_REGION || "us-central1",
+    timeoutSeconds: 30,
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Use POST for syncPremiumStatus." });
+      return;
+    }
+
+    const decodedToken = await verifyAuth(req);
+    if (!decodedToken) {
+      res.status(401).json({ error: "Authentication required." });
+      return;
+    }
+    const uid = decodedToken.uid;
+
+    const active = await revenueCatHasPremium(uid);
+    if (active === null) {
+      // RevenueCat is not configured. Never mint claims; report claim status.
+      res
+        .status(200)
+        .json({ premium: decodedToken.premium === true, synced: false });
+      return;
+    }
+
+    // Mint or clear the premium claim based on the server-verified
+    // entitlement. Clearing it prevents stale premium access after
+    // cancellation or expiry.
+    await admin.auth().setCustomUserClaims(uid, { premium: active });
+    logger.info("Premium claim synced", { uid, premium: active });
+    res.status(200).json({ premium: active, synced: true });
+  },
+);

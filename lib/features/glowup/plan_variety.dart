@@ -130,7 +130,7 @@ class RotationPools {
 RotationPools buildRotationPools(GlowUserProfile profile) {
   final exercise = (profile.exerciseFrequency ?? '').toLowerCase();
   final skinType = (profile.skinType ?? '').toLowerCase();
-  final vibe = (profile.aesthetic ?? '').toLowerCase();
+  final vibe = (profile.effectiveAesthetic).toLowerCase();
   final goal = (profile.goal ?? '').toLowerCase();
   final lifestyle = (profile.lifestyle ?? '').toLowerCase();
   final sleep = (profile.sleepSchedule ?? '').toLowerCase();

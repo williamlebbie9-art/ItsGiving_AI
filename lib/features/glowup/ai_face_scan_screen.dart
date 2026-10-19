@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,7 +10,9 @@ import '../../core/models/decision_models.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/user_journey_provider.dart';
 import '../../core/services/decision_engine.dart';
+import '../../core/services/glow_profile_repository.dart';
 import 'glow_app_shell.dart';
+import 'glow_models.dart';
 import 'glow_up_generator_screen.dart';
 import 'glowup_app.dart';
 import 'intro_paywall_auth_gate.dart';
@@ -43,6 +46,34 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
   String? _analysisResult;
   String? _errorMessage;
   bool _requestLocked = false;
+  String? _selectedAesthetic;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileAesthetic();
+  }
+
+  Future<void> _loadProfileAesthetic() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('glowup_profile');
+    if (raw == null || raw.isEmpty) {
+      if (mounted) setState(() => _selectedAesthetic = null);
+      return;
+    }
+
+    try {
+      final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      final profile = GlowUserProfile.fromJson(map);
+      if (mounted) {
+        setState(() => _selectedAesthetic = profile.effectiveAesthetic);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _selectedAesthetic = null);
+      }
+    }
+  }
 
   Future<void> _pick(ImageSource source) async {
     final image = await _picker.pickImage(
@@ -95,6 +126,7 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
         DecisionRequest(
           query:
               'Analyze this face selfie as a warm, encouraging glow-up coach. '
+              'The user is working toward the ${_selectedAesthetic ?? 'Clean Girl'} aesthetic; frame styling suggestions around that goal. '
               'Provide a detailed assessment covering: skin appearance and skincare opportunities, '
               'face shape and styling compatibility, hairstyle compatibility, brow styling, '
               'makeup/styling opportunities, overall grooming, facial proportions for styling purposes, '
@@ -128,6 +160,10 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
       final summary = result.reasoning.isNotEmpty
           ? result.reasoning
           : '${result.bestChoice}\n\n${result.pros.join('\n')}';
+
+      // Keep one safe, non-diagnostic summary available to the plan and coach
+      // on this device and on future authenticated sessions.
+      await GlowProfileRepository().saveScanSummary(summary);
 
       // Persist the REAL AI analysis for the intro flow so returning users
       // can continue after an app restart. Never a mock.
@@ -223,162 +259,219 @@ class _AiFaceScanScreenState extends ConsumerState<AiFaceScanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = aestheticThemeFor(_selectedAesthetic);
+
     return GlowScaffold(
-      child: Material(
-        color: Colors.transparent,
-        child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
-            children: [
-              const ScreenHeading(
-                title: 'AI Face Scan',
-                subtitle:
-                    'Analyze skin, symmetry, brows, hair fit, smile, and glow potential.',
-              ),
-              const SizedBox(height: 18),
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: AspectRatio(
-                    aspectRatio: 0.86,
-                    child: _image == null
-                        ? const GlowCameraPlaceholder()
-                        : Image.file(File(_image!.path), fit: BoxFit.cover),
-                  ),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [theme.backgroundStart, theme.backgroundEnd],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
+              children: [
+                ScreenHeading(
+                  title: 'AI Face Scan',
+                  subtitle:
+                      'Analyze skin, symmetry, brows, hair fit, smile, and glow potential.',
                 ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => _pick(ImageSource.camera),
-                      icon: const Icon(Icons.camera_alt_rounded),
-                      label: const Text('Camera'),
+                const SizedBox(height: 18),
+                GlassCard(
+                  padding: EdgeInsets.zero,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: AspectRatio(
+                      aspectRatio: 0.86,
+                      child: _image == null
+                          ? const GlowCameraPlaceholder()
+                          : Image.file(File(_image!.path), fit: BoxFit.cover),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _pick(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library_rounded),
-                      label: const Text('Gallery'),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _pick(ImageSource.camera),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: theme.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.camera_alt_rounded),
+                        label: const Text('Camera'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _pick(ImageSource.gallery),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: theme.primary.withValues(alpha: 0.5),
+                          ),
+                          foregroundColor: theme.label,
+                        ),
+                        icon: const Icon(Icons.photo_library_rounded),
+                        label: const Text('Gallery'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: _image == null || _analyzing ? null : _analyze,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: _analyzing
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 10),
+                            Text('Analyzing glow potential...'),
+                          ],
+                        )
+                      : const Text('Generate Glow-Up Assessment'),
+                ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 16),
+                  GlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI Analysis Unavailable',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: theme.primary,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'We couldn\'t reach the AI service right now. '
+                          'Please check your connection and try again.',
+                          style: TextStyle(color: theme.label),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _errorMessage!,
+                          style: TextStyle(
+                            color: theme.label,
+                            fontSize: 11,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: _analyze,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: theme.primary,
+                                  foregroundColor: Colors.white,
+                                ),
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('Try Again'),
+                              ),
+                            ),
+                            if (widget.isIntroFlow) ...[
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: _skipScan,
+                                  child: const Text('Skip for now'),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _image == null || _analyzing ? null : _analyze,
-                child: _analyzing
-                    ? const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          SizedBox(width: 10),
-                          Text('Analyzing glow potential...'),
-                        ],
-                      )
-                    : const Text('Generate Glow-Up Assessment'),
-              ),
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 16),
-                GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SectionTitle('AI Analysis Unavailable'),
-                      const SizedBox(height: 8),
-                      Text(
-                        'We couldn\'t reach the AI service right now. '
-                        'Please check your connection and try again.',
-                        style: TextStyle(color: GlowColors.muted),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _errorMessage!,
-                        style: TextStyle(
-                          color: GlowColors.muted,
-                          fontSize: 11,
-                          height: 1.4,
+                if (_analysisResult != null) ...[
+                  const SizedBox(height: 16),
+                  GlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI Analysis',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: theme.primary,
+                              ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: _analyze,
-                              icon: const Icon(Icons.refresh_rounded),
-                              label: const Text('Try Again'),
-                            ),
-                          ),
-                          if (widget.isIntroFlow) ...[
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: _skipScan,
-                                child: const Text('Skip for now'),
+                        const SizedBox(height: 8),
+                        Text(_analysisResult!),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _openGenerator,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: theme.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.auto_awesome_rounded),
+                    label: const Text('Explore Your Glow-Up'),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children:
+                      [
+                            'Skin quality',
+                            'Skincare opportunities',
+                            'Face shape',
+                            'Hairstyle fit',
+                            'Brow styling',
+                            'Makeup opportunities',
+                            'Grooming',
+                            'Wellness habits',
+                          ]
+                          .map(
+                            (label) => Chip(
+                              label: Text(label),
+                              backgroundColor: theme.pill,
+                              labelStyle: TextStyle(
+                                color: theme.label,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ],
-                        ],
-                      ),
-                    ],
+                          )
+                          .toList(),
+                ),
+                if (widget.isIntroFlow) ...[
+                  const SizedBox(height: 24),
+                  TextButton.icon(
+                    onPressed: _skipScan,
+                    icon: const Icon(Icons.skip_next_rounded),
+                    label: const Text('Skip for now — go to app'),
+                    style: TextButton.styleFrom(foregroundColor: theme.label),
                   ),
-                ),
+                ],
               ],
-              if (_analysisResult != null) ...[
-                const SizedBox(height: 16),
-                GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SectionTitle('AI Analysis'),
-                      const SizedBox(height: 8),
-                      Text(_analysisResult!),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _openGenerator,
-                  icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('Explore Your Glow-Up'),
-                ),
-              ],
-              const SizedBox(height: 18),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: const [
-                  'Skin quality',
-                  'Skincare opportunities',
-                  'Face shape',
-                  'Hairstyle fit',
-                  'Brow styling',
-                  'Makeup opportunities',
-                  'Grooming',
-                  'Wellness habits',
-                ].map((label) => Chip(label: Text(label))).toList(),
-              ),
-              if (widget.isIntroFlow) ...[
-                const SizedBox(height: 24),
-                TextButton.icon(
-                  onPressed: _skipScan,
-                  icon: const Icon(Icons.skip_next_rounded),
-                  label: const Text('Skip for now — go to app'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: GlowColors.muted,
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),

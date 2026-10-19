@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_face_scan_screen.dart';
+import 'glow_models.dart';
 import 'glow_up_generator_screen.dart';
 import 'plan_history_screen.dart';
 import 'plan_models.dart';
@@ -18,12 +21,34 @@ class GlowUpPlanScreen extends ConsumerStatefulWidget {
 }
 
 class _GlowUpPlanScreenState extends ConsumerState<GlowUpPlanScreen> {
+  String? _selectedAesthetic;
+
   @override
   void initState() {
     super.initState();
+    _loadProfileAesthetic();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(planProvider.notifier).loadPlan();
     });
+  }
+
+  Future<void> _loadProfileAesthetic() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('glowup_profile');
+    if (raw == null || raw.isEmpty) {
+      if (mounted) setState(() => _selectedAesthetic = null);
+      return;
+    }
+
+    try {
+      final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      final profile = GlowUserProfile.fromJson(map);
+      if (mounted) {
+        setState(() => _selectedAesthetic = profile.effectiveAesthetic);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _selectedAesthetic = null);
+    }
   }
 
   Future<void> _openNewPlanGenerator() async {
@@ -106,6 +131,7 @@ class _GlowUpPlanScreenState extends ConsumerState<GlowUpPlanScreen> {
   @override
   Widget build(BuildContext context) {
     final planState = ref.watch(planProvider);
+    final theme = aestheticThemeFor(_selectedAesthetic);
 
     if (planState.isLoading && planState.plan == null) {
       return const _PlanLoading();
@@ -124,15 +150,24 @@ class _GlowUpPlanScreenState extends ConsumerState<GlowUpPlanScreen> {
         onRetry: () => ref.read(planProvider.notifier).loadPlan(),
       );
     }
-    return _PlanContent(plan: plan, onNewPlan: _confirmNewPlan);
+    return _PlanContent(
+      plan: plan,
+      onNewPlan: _confirmNewPlan,
+      aestheticTheme: theme,
+    );
   }
 }
 
 class _PlanContent extends ConsumerWidget {
-  const _PlanContent({required this.plan, required this.onNewPlan});
+  const _PlanContent({
+    required this.plan,
+    required this.onNewPlan,
+    required this.aestheticTheme,
+  });
 
   final GlowUpPlan plan;
   final VoidCallback onNewPlan;
+  final AestheticTheme aestheticTheme;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -143,6 +178,9 @@ class _PlanContent extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('✨ My Glow-Up Plan'),
         centerTitle: true,
+        backgroundColor: aestheticTheme.backgroundStart,
+        foregroundColor: aestheticTheme.label,
+        surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
             icon: const Icon(Icons.history_rounded),
@@ -161,9 +199,12 @@ class _PlanContent extends ConsumerWidget {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFFFF3FA), Color(0xFFFFE4F1), Color(0xFFEADFFF)],
+            colors: [
+              aestheticTheme.backgroundStart,
+              aestheticTheme.backgroundEnd,
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -183,8 +224,8 @@ class _PlanContent extends ConsumerWidget {
               Text(
                 '${plan.styleName} style plan',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFFFF5FA2),
+                style: TextStyle(
+                  color: aestheticTheme.primary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -205,7 +246,7 @@ class _PlanContent extends ConsumerWidget {
                 value: plan.progress,
                 minHeight: 12,
                 backgroundColor: Colors.white.withValues(alpha: 0.7),
-                color: const Color(0xFFFF5FA2),
+                color: aestheticTheme.primary,
               ),
             ),
             const SizedBox(height: 8),
@@ -218,7 +259,12 @@ class _PlanContent extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 20),
-            if (currentWeek != null) _WeekCard(week: currentWeek, plan: plan),
+            if (currentWeek != null)
+              _WeekCard(
+                week: currentWeek,
+                plan: plan,
+                aestheticTheme: aestheticTheme,
+              ),
             const SizedBox(height: 20),
             if (currentDay != null) ...[
               Text(
@@ -228,16 +274,27 @@ class _PlanContent extends ConsumerWidget {
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 12),
-              _DayTasksCard(day: currentDay, plan: plan),
+              _DayTasksCard(
+                day: currentDay,
+                plan: plan,
+                aestheticTheme: aestheticTheme,
+              ),
               const SizedBox(height: 20),
             ],
             if (currentWeek != null &&
                 currentWeek.checkIn == null &&
                 currentWeek.days.isNotEmpty)
-              _WeeklyCheckInCard(week: currentWeek),
-            if (currentWeek?.checkIn != null) _CheckInDone(week: currentWeek!),
+              _WeeklyCheckInCard(
+                week: currentWeek,
+                aestheticTheme: aestheticTheme,
+              ),
+            if (currentWeek?.checkIn != null)
+              _CheckInDone(week: currentWeek!, aestheticTheme: aestheticTheme),
             const SizedBox(height: 20),
-            _CreateNewPlanCard(onTap: onNewPlan),
+            _CreateNewPlanCard(
+              onTap: onNewPlan,
+              aestheticTheme: aestheticTheme,
+            ),
           ],
         ),
       ),
@@ -247,18 +304,28 @@ class _PlanContent extends ConsumerWidget {
 
 /// Card that lets the user create a new plan with confirmation.
 class _CreateNewPlanCard extends StatelessWidget {
-  const _CreateNewPlanCard({required this.onTap});
+  const _CreateNewPlanCard({required this.onTap, required this.aestheticTheme});
 
   final VoidCallback onTap;
+  final AestheticTheme aestheticTheme;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.6),
+        gradient: LinearGradient(
+          colors: [
+            aestheticTheme.backgroundStart.withValues(alpha: 0.7),
+            Colors.white.withValues(alpha: 0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white),
+        border: Border.all(
+          color: aestheticTheme.primary.withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,22 +357,36 @@ class _CreateNewPlanCard extends StatelessWidget {
 }
 
 class _WeekCard extends StatelessWidget {
-  const _WeekCard({required this.week, required this.plan});
+  const _WeekCard({
+    required this.week,
+    required this.plan,
+    required this.aestheticTheme,
+  });
 
   final PlanWeek week;
   final GlowUpPlan plan;
+  final AestheticTheme aestheticTheme;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.75),
+        gradient: LinearGradient(
+          colors: [
+            aestheticTheme.backgroundStart.withValues(alpha: 0.72),
+            Colors.white.withValues(alpha: 0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white),
+        border: Border.all(
+          color: aestheticTheme.primary.withValues(alpha: 0.18),
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFF5FA2).withValues(alpha: 0.1),
+            color: aestheticTheme.secondary.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -318,7 +399,7 @@ class _WeekCard extends StatelessWidget {
             'Week ${week.weekNumber} — ${week.title}',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
-              color: const Color(0xFFFF5FA2),
+              color: aestheticTheme.primary,
             ),
           ),
           const SizedBox(height: 8),
@@ -332,7 +413,11 @@ class _WeekCard extends StatelessWidget {
                   .map(
                     (area) => Chip(
                       label: Text(area),
-                      backgroundColor: Colors.white.withValues(alpha: 0.7),
+                      backgroundColor: aestheticTheme.pill,
+                      labelStyle: TextStyle(
+                        color: aestheticTheme.label,
+                        fontWeight: FontWeight.w700,
+                      ),
                       visualDensity: VisualDensity.compact,
                     ),
                   )
@@ -356,9 +441,9 @@ class _WeekCard extends StatelessWidget {
                     height: 44,
                     decoration: BoxDecoration(
                       color: isToday
-                          ? const Color(0xFFFF5FA2)
+                          ? aestheticTheme.primary
                           : isDone
-                          ? const Color(0xFFB8E6C8)
+                          ? aestheticTheme.secondary.withValues(alpha: 0.38)
                           : Colors.white.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(10),
                       border: isToday
@@ -396,10 +481,15 @@ class _WeekCard extends StatelessWidget {
 }
 
 class _DayTasksCard extends ConsumerWidget {
-  const _DayTasksCard({required this.day, required this.plan});
+  const _DayTasksCard({
+    required this.day,
+    required this.plan,
+    required this.aestheticTheme,
+  });
 
   final PlanDay day;
   final GlowUpPlan plan;
+  final AestheticTheme aestheticTheme;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -424,9 +514,9 @@ class _DayTasksCard extends ConsumerWidget {
               const Spacer(),
               Text(
                 '${day.completedCount}/${day.tasks.length}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFFFF5FA2),
+                  color: aestheticTheme.primary,
                 ),
               ),
             ],
@@ -447,6 +537,7 @@ class _DayTasksCard extends ConsumerWidget {
               task: task,
               weekNumber: plan.currentWeek,
               dayNumber: day.dayNumber,
+              accentColor: aestheticTheme.primary,
             ),
           ),
         ],
@@ -460,11 +551,13 @@ class _TaskTile extends ConsumerWidget {
     required this.task,
     required this.weekNumber,
     required this.dayNumber,
+    required this.accentColor,
   });
 
   final PlanTask task;
   final int weekNumber;
   final int dayNumber;
+  final Color accentColor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -482,7 +575,7 @@ class _TaskTile extends ConsumerWidget {
       subtitle: task.description.isNotEmpty
           ? Text(task.description, style: const TextStyle(fontSize: 12))
           : null,
-      activeColor: const Color(0xFFFF5FA2),
+      activeColor: accentColor,
       onChanged: (_) {
         ref
             .read(planProvider.notifier)
@@ -497,9 +590,10 @@ class _TaskTile extends ConsumerWidget {
 }
 
 class _WeeklyCheckInCard extends ConsumerStatefulWidget {
-  const _WeeklyCheckInCard({required this.week});
+  const _WeeklyCheckInCard({required this.week, required this.aestheticTheme});
 
   final PlanWeek week;
+  final AestheticTheme aestheticTheme;
 
   @override
   ConsumerState<_WeeklyCheckInCard> createState() => _WeeklyCheckInCardState();
@@ -583,6 +677,10 @@ class _WeeklyCheckInCardState extends ConsumerState<_WeeklyCheckInCard> {
                         ),
                       );
                     },
+              style: FilledButton.styleFrom(
+                backgroundColor: widget.aestheticTheme.primary,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Submit Check-In'),
             ),
           ),
@@ -593,9 +691,10 @@ class _WeeklyCheckInCardState extends ConsumerState<_WeeklyCheckInCard> {
 }
 
 class _CheckInDone extends StatelessWidget {
-  const _CheckInDone({required this.week});
+  const _CheckInDone({required this.week, required this.aestheticTheme});
 
   final PlanWeek week;
+  final AestheticTheme aestheticTheme;
 
   @override
   Widget build(BuildContext context) {

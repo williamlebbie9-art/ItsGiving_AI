@@ -114,22 +114,49 @@ class GlowDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _GlowDashboardScreenState extends ConsumerState<GlowDashboardScreen> {
+  String? _selectedAesthetic;
+
   @override
   void initState() {
     super.initState();
+    _loadProfileAesthetic();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(planProvider.notifier).loadPlan();
     });
   }
 
+  Future<void> _loadProfileAesthetic() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('glowup_profile');
+    if (!mounted || raw == null || raw.isEmpty) {
+      if (mounted) {
+        setState(() => _selectedAesthetic = null);
+      }
+      return;
+    }
+
+    try {
+      final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      final profile = GlowUserProfile.fromJson(map);
+      if (mounted) {
+        setState(() => _selectedAesthetic = profile.effectiveAesthetic);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _selectedAesthetic = null);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final planState = ref.watch(planProvider);
+    final theme = aestheticThemeFor(_selectedAesthetic);
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFFFF3FA), Color(0xFFFFE4F1), Color(0xFFEADFFF)],
+          colors: [theme.backgroundStart, theme.backgroundEnd],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -153,14 +180,15 @@ class _GlowDashboardScreenState extends ConsumerState<GlowDashboardScreen> {
     }
 
     // Data ready — show the home screen with the user's plan.
-    return _HomeContent(plan: planState.plan);
+    return _HomeContent(plan: planState.plan, aesthetic: _selectedAesthetic);
   }
 }
 
 class _HomeContent extends ConsumerWidget {
-  const _HomeContent({required this.plan});
+  const _HomeContent({required this.plan, this.aesthetic});
 
   final GlowUpPlan? plan;
+  final String? aesthetic;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -168,10 +196,17 @@ class _HomeContent extends ConsumerWidget {
     final currentWeek = plan?.currentWeekData;
     final dayLabel = plan != null ? 'Day ${plan!.currentDay} 🔥' : 'Ready ✨';
 
+    final targetAesthetic = aesthetic ?? 'Clean Girl';
+    final aestheticTheme = aestheticThemeFor(targetAesthetic);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
       children: [
-        _BrandHeader(trailing: dayLabel),
+        _BrandHeader(
+          trailing: dayLabel,
+          aesthetic: targetAesthetic,
+          aestheticTheme: aestheticTheme,
+        ),
         const SizedBox(height: 14),
         Text(
           'Your Glow Journey',
@@ -180,17 +215,34 @@ class _HomeContent extends ConsumerWidget {
             context,
           ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
         ),
+        const SizedBox(height: 8),
+        Text(
+          '$targetAesthetic energy • tailored to your vibe',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 18),
-        const _GlowScanHeroCard(),
+        _GlowScanHeroCard(
+          aesthetic: targetAesthetic,
+          aestheticTheme: aestheticTheme,
+        ),
         const SizedBox(height: 18),
-        const _DashboardQuickActions(),
+        _DashboardQuickActions(theme: aestheticTheme),
         const SizedBox(height: 18),
         if (plan != null && currentDay != null && currentWeek != null)
-          _TodayPlanCard(plan: plan!, day: currentDay, week: currentWeek)
+          _TodayPlanCard(
+            plan: plan!,
+            day: currentDay,
+            week: currentWeek,
+            aestheticTheme: aestheticTheme,
+          )
         else
-          const _NoPlanCard(),
+          _NoPlanCard(aestheticTheme: aestheticTheme),
         const SizedBox(height: 18),
-        const _DailyGlowTipCard(),
+        _DailyGlowTipCard(aestheticTheme: aestheticTheme),
       ],
     );
   }
@@ -202,23 +254,38 @@ class _TodayPlanCard extends ConsumerWidget {
     required this.plan,
     required this.day,
     required this.week,
+    this.aestheticTheme,
   });
 
   final GlowUpPlan plan;
   final PlanDay day;
   final PlanWeek week;
+  final AestheticTheme? aestheticTheme;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
+        gradient: LinearGradient(
+          colors: [
+            (aestheticTheme?.backgroundStart ?? Colors.white).withValues(
+              alpha: 0.9,
+            ),
+            Colors.white.withValues(alpha: 0.86),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white),
+        border: Border.all(
+          color: (aestheticTheme?.primary ?? const Color(0xFFFF5FA2))
+              .withValues(alpha: 0.2),
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFF5FA2).withValues(alpha: 0.1),
+            color: (aestheticTheme?.secondary ?? const Color(0xFFB69CFF))
+                .withValues(alpha: 0.15),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -245,15 +312,16 @@ class _TodayPlanCard extends ConsumerWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF5FA2).withValues(alpha: 0.12),
+                    color: (aestheticTheme?.pill ?? const Color(0xFFFFD8EA))
+                        .withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
                     'Day ${plan.currentDay} — ${week.title}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFFFF5FA2),
+                    style: TextStyle(
+                      color: aestheticTheme?.label ?? const Color(0xFFFF5FA2),
                       fontWeight: FontWeight.w800,
                       fontSize: 12,
                     ),
@@ -314,6 +382,12 @@ class _TodayPlanCard extends ConsumerWidget {
                   MaterialPageRoute(builder: (_) => const GlowUpPlanScreen()),
                 );
               },
+              style: FilledButton.styleFrom(
+                backgroundColor:
+                    aestheticTheme?.primary ?? const Color(0xFFFF5FA2),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
               icon: const Icon(Icons.arrow_forward_rounded),
               label: const Text('Continue Plan →'),
             ),
@@ -325,7 +399,9 @@ class _TodayPlanCard extends ConsumerWidget {
 }
 
 class _NoPlanCard extends ConsumerStatefulWidget {
-  const _NoPlanCard();
+  const _NoPlanCard({this.aestheticTheme});
+
+  final AestheticTheme? aestheticTheme;
 
   @override
   ConsumerState<_NoPlanCard> createState() => _NoPlanCardState();
@@ -372,9 +448,21 @@ class _NoPlanCardState extends ConsumerState<_NoPlanCard> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
+        gradient: LinearGradient(
+          colors: [
+            (widget.aestheticTheme?.backgroundStart ?? Colors.white).withValues(
+              alpha: 0.88,
+            ),
+            Colors.white.withValues(alpha: 0.9),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white),
+        border: Border.all(
+          color: (widget.aestheticTheme?.primary ?? const Color(0xFFFF5FA2))
+              .withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,6 +482,12 @@ class _NoPlanCardState extends ConsumerState<_NoPlanCard> {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: _creating ? null : _createPlanNow,
+              style: FilledButton.styleFrom(
+                backgroundColor:
+                    widget.aestheticTheme?.primary ?? const Color(0xFFFF5FA2),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
               icon: _creating
                   ? const SizedBox(
                       width: 18,
@@ -413,10 +507,14 @@ class _NoPlanCardState extends ConsumerState<_NoPlanCard> {
 }
 
 class _DashboardQuickActions extends StatelessWidget {
-  const _DashboardQuickActions();
+  const _DashboardQuickActions({this.theme});
+
+  final AestheticTheme? theme;
 
   @override
   Widget build(BuildContext context) {
+    final palette = theme ?? aestheticThemeFor('Clean Girl');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -439,7 +537,8 @@ class _DashboardQuickActions extends StatelessWidget {
               icon: Icons.auto_awesome_rounded,
               title: 'Enhance',
               subtitle: 'Feature cards',
-              color: const Color(0xFFFF8FC7),
+              color: palette.primary,
+              accentColor: palette.secondary,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const FeatureCardsScreen()),
@@ -450,7 +549,8 @@ class _DashboardQuickActions extends StatelessWidget {
               icon: Icons.favorite_rounded,
               title: 'My Vibe',
               subtitle: 'Aesthetics',
-              color: const Color(0xFFB69CFF),
+              color: palette.secondary,
+              accentColor: palette.primary,
               onTap: () {
                 Navigator.of(
                   context,
@@ -462,6 +562,7 @@ class _DashboardQuickActions extends StatelessWidget {
               title: 'Premium',
               subtitle: 'Unlock more',
               color: const Color(0xFFFFB86B),
+              accentColor: palette.primary,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const PaywallScreen()),
@@ -472,7 +573,8 @@ class _DashboardQuickActions extends StatelessWidget {
               icon: Icons.camera_alt_rounded,
               title: 'Scan Face',
               subtitle: 'AI analysis',
-              color: const Color(0xFFFF5FA2),
+              color: palette.primary,
+              accentColor: palette.secondary,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const AiFaceScanScreen()),
@@ -483,10 +585,13 @@ class _DashboardQuickActions extends StatelessWidget {
               icon: Icons.auto_awesome_rounded,
               title: 'AI Looks',
               subtitle: 'Create a preview',
-              color: const Color(0xFF9C7CFF),
+              color: palette.secondary,
+              accentColor: palette.primary,
               onTap: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ImageGenerationScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const ImageGenerationScreen(),
+                  ),
                 );
               },
             ),
@@ -495,6 +600,7 @@ class _DashboardQuickActions extends StatelessWidget {
               title: 'Notifications',
               subtitle: 'Reminder settings',
               color: const Color(0xFF7DD3FC),
+              accentColor: palette.primary,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -516,6 +622,7 @@ class _QuickActionButton extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.color,
+    required this.accentColor,
     required this.onTap,
   });
 
@@ -523,6 +630,7 @@ class _QuickActionButton extends StatelessWidget {
   final String title;
   final String subtitle;
   final Color color;
+  final Color accentColor;
   final VoidCallback onTap;
 
   @override
@@ -536,8 +644,16 @@ class _QuickActionButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                color.withValues(alpha: 0.12),
+                accentColor.withValues(alpha: 0.08),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
+            border: Border.all(color: color.withValues(alpha: 0.24)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,7 +663,14 @@ class _QuickActionButton extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
+                  gradient: LinearGradient(
+                    colors: [
+                      color.withValues(alpha: 0.2),
+                      accentColor.withValues(alpha: 0.18),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color, size: 22),
@@ -574,22 +697,28 @@ class _QuickActionButton extends StatelessWidget {
 }
 
 class _GlowScanHeroCard extends StatelessWidget {
-  const _GlowScanHeroCard();
+  const _GlowScanHeroCard({this.aesthetic, this.aestheticTheme});
+
+  final String? aesthetic;
+  final AestheticTheme? aestheticTheme;
 
   @override
   Widget build(BuildContext context) {
+    final vibe = aesthetic ?? 'Clean Girl';
+    final theme = aestheticTheme ?? aestheticThemeFor(vibe);
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFF8FC7), Color(0xFFB69CFF)],
+        gradient: LinearGradient(
+          colors: [theme.primary, theme.secondary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFF5FA2).withValues(alpha: 0.2),
+            color: theme.secondary.withValues(alpha: 0.3),
             blurRadius: 24,
             offset: const Offset(0, 12),
           ),
@@ -604,29 +733,29 @@ class _GlowScanHeroCard extends StatelessWidget {
               color: Colors.white.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.face_retouching_natural_rounded,
               color: Colors.white,
               size: 40,
             ),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AI Glow Scan',
-                  style: TextStyle(
+                  '$vibe glow direction',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
                     fontSize: 18,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  'Analyze your features and get personalized glow-up directions.',
-                  style: TextStyle(color: Colors.white, height: 1.3),
+                  'Analyze your features and follow a personalized path built around your $vibe aesthetic.',
+                  style: const TextStyle(color: Colors.white, height: 1.3),
                 ),
               ],
             ),
@@ -638,16 +767,27 @@ class _GlowScanHeroCard extends StatelessWidget {
 }
 
 class _DailyGlowTipCard extends StatelessWidget {
-  const _DailyGlowTipCard();
+  const _DailyGlowTipCard({this.aestheticTheme});
+
+  final AestheticTheme? aestheticTheme;
 
   @override
   Widget build(BuildContext context) {
+    final theme = aestheticTheme ?? aestheticThemeFor('Clean Girl');
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
+        gradient: LinearGradient(
+          colors: [
+            theme.backgroundStart.withValues(alpha: 0.82),
+            Colors.white.withValues(alpha: 0.9),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white),
+        border: Border.all(color: theme.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -659,8 +799,9 @@ class _DailyGlowTipCard extends StatelessWidget {
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Consistency beats intensity. Small daily habits compound into visible glow — stick with your plan and trust the process.',
+            style: TextStyle(color: Colors.grey[700]),
           ),
         ],
       ),
@@ -669,9 +810,11 @@ class _DailyGlowTipCard extends StatelessWidget {
 }
 
 class _BrandHeader extends ConsumerWidget {
-  const _BrandHeader({this.trailing});
+  const _BrandHeader({this.trailing, this.aesthetic, this.aestheticTheme});
 
   final String? trailing;
+  final String? aesthetic;
+  final AestheticTheme? aestheticTheme;
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
     // Clear user-specific in-memory state.
@@ -689,8 +832,11 @@ class _BrandHeader extends ConsumerWidget {
           width: 46,
           height: 46,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF70B8), Color(0xFFB69CFF)],
+            gradient: LinearGradient(
+              colors: [
+                aestheticTheme?.primary ?? const Color(0xFFFF70B8),
+                aestheticTheme?.secondary ?? const Color(0xFFB69CFF),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -707,6 +853,22 @@ class _BrandHeader extends ConsumerWidget {
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
+        if (aesthetic != null)
+          Chip(
+            avatar: Icon(
+              Icons.palette_rounded,
+              size: 18,
+              color: aestheticTheme?.label ?? const Color(0xFFB14F88),
+            ),
+            label: Text(
+              aesthetic!,
+              style: TextStyle(
+                color: aestheticTheme?.label ?? const Color(0xFFB14F88),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            backgroundColor: aestheticTheme?.pill ?? const Color(0xFFFFD8EA),
+          ),
         if (trailing != null)
           Chip(
             avatar: const Icon(Icons.local_fire_department_rounded, size: 18),

@@ -45,7 +45,8 @@ local emulation or a staging project with Flutter build defines:
 flutter run \
   --dart-define=AI_PROVIDER=firebase \
   --dart-define=FIREBASE_FUNCTIONS_URL=http://127.0.0.1:5001/decide-ai-89445/us-central1/generateDecision \
-  --dart-define=FIREBASE_IMAGE_FUNCTIONS_URL=http://127.0.0.1:5001/decide-ai-89445/us-central1/generateGlowUpImage
+  --dart-define=FIREBASE_IMAGE_FUNCTIONS_URL=http://127.0.0.1:5001/decide-ai-89445/us-central1/generateGlowUpImage \
+  --dart-define=FIREBASE_PREMIUM_SYNC_URL=http://127.0.0.1:5001/decide-ai-89445/us-central1/syncPremiumStatus
 ```
 
 Example `functions/.env`:
@@ -57,7 +58,14 @@ GEMINI_MODEL=gemini-1.5-flash
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
 AI_FUNCTION_REGION=us-central1
+REVENUECAT_API_KEY=your_revenuecat_private_key
 ```
+
+Premium verification: the `syncPremiumStatus` function verifies the caller's
+RevenueCat `premium` entitlement server-side and mints/clears the matching
+`premium` Firebase custom claim. Cloud Functions then enforce the glow-up image
+allowance: 1 generation per calendar month for free users, 20 per month for
+premium users (the counter resets each month).
 
 If the provider is unavailable, the app shows a retryable error and retains a
 local fallback plan instead of blocking the onboarding journey.

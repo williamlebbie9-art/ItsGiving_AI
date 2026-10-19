@@ -70,7 +70,11 @@ class SubscriptionService {
     }
 
     final apiKey =
-        _apiKey ?? const String.fromEnvironment('REVENUECAT_API_KEY');
+        _apiKey ??
+        const String.fromEnvironment(
+          'REVENUECAT_API_KEY',
+          defaultValue: 'appl_ZZUyyKuQUAdMBMQdJjukxcrxzJ',
+        );
     if (apiKey.isEmpty) {
       debugPrint(
         '[Subscriptions] RevenueCat API key not configured. '

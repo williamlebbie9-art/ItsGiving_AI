@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'glow_models.dart';
+import '../../core/services/glow_profile_repository.dart';
 
 class VibeScreen extends StatefulWidget {
   const VibeScreen({super.key});
@@ -11,41 +15,108 @@ class VibeScreen extends StatefulWidget {
 
 class _VibeScreenState extends State<VibeScreen> {
   Vibe? _selectedVibe;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedVibe();
+  }
+
+  Future<void> _loadSavedVibe() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('glowup_profile');
+    if (raw == null || raw.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    try {
+      final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      final profile = GlowUserProfile.fromJson(map);
+      final saved = profile.effectiveAesthetic;
+      final match = vibes.firstWhere(
+        (vibe) => vibe.name.toLowerCase() == saved.toLowerCase(),
+        orElse: () => vibes.first,
+      );
+      if (mounted) {
+        setState(() {
+          _selectedVibe = match;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _saveVibe(Vibe vibe) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('glowup_profile');
+    Map<String, dynamic> map = {};
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      } catch (_) {}
+    }
+
+    final profile = GlowUserProfile.fromJson(map);
+    final updatedProfile = profile.copyWith(
+      aesthetic: vibe.name,
+      targetAesthetic: vibe.name,
+      currentLookSummary: profile.currentLookSummary,
+      aestheticCombos: [vibe.name],
+    );
+
+    await GlowProfileRepository().save(updatedProfile);
+    if (!mounted) return;
+    setState(() => _selectedVibe = vibe);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${vibe.name} is now your active aesthetic.')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('My Vibe'), centerTitle: true),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            'Discover the aesthetic that feels like YOU. Pick a vibe to see outfit, hair, makeup, and lifestyle ideas.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Colors.grey[600],
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...vibes.map(
-            (vibe) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _VibeTile(
-                vibe: vibe,
-                isSelected: _selectedVibe?.name == vibe.name,
-                onTap: () {
-                  setState(() => _selectedVibe = vibe);
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => VibeDetailScreen(vibe: vibe),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  'Discover the aesthetic that feels like YOU. Pick a vibe to see outfit, hair, makeup, and lifestyle ideas.',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.grey[600],
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ...vibes.map(
+                  (vibe) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _VibeTile(
+                      vibe: vibe,
+                      isSelected: _selectedVibe?.name == vibe.name,
+                      palette: aestheticThemeFor(vibe.name),
+                      onTap: () {
+                        setState(() => _selectedVibe = vibe);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => VibeDetailScreen(
+                              vibe: vibe,
+                              palette: aestheticThemeFor(vibe.name),
+                              onApply: (_) async => _saveVibe(vibe),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -55,11 +126,13 @@ class _VibeTile extends StatelessWidget {
     required this.vibe,
     required this.isSelected,
     required this.onTap,
+    required this.palette,
   });
 
   final Vibe vibe;
   final bool isSelected;
   final VoidCallback onTap;
+  final AestheticTheme palette;
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +147,7 @@ class _VibeTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? const Color(0xFFFF5FA2) : Colors.grey[200]!,
+              color: isSelected ? palette.primary : Colors.grey[200]!,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -84,8 +157,8 @@ class _VibeTile extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF70B8), Color(0xFFB69CFF)],
+                  gradient: LinearGradient(
+                    colors: [palette.primary, palette.secondary],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -126,9 +199,16 @@ class _VibeTile extends StatelessWidget {
 }
 
 class VibeDetailScreen extends StatelessWidget {
-  const VibeDetailScreen({required this.vibe, super.key});
+  const VibeDetailScreen({
+    required this.vibe,
+    required this.palette,
+    this.onApply,
+    super.key,
+  });
 
   final Vibe vibe;
+  final AestheticTheme palette;
+  final Future<void> Function(Vibe vibe)? onApply;
 
   @override
   Widget build(BuildContext context) {
@@ -140,8 +220,8 @@ class VibeDetailScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF70B8), Color(0xFFB69CFF)],
+              gradient: LinearGradient(
+                colors: [palette.primary, palette.secondary],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -219,6 +299,16 @@ class VibeDetailScreen extends StatelessWidget {
             Icons.self_improvement_rounded,
             vibe.lifestyleHabits,
           ),
+          const SizedBox(height: 20),
+          if (onApply != null)
+            FilledButton.icon(
+              onPressed: () async {
+                await onApply!(vibe);
+                if (context.mounted) Navigator.of(context).pop();
+              },
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Use this vibe'),
+            ),
         ],
       ),
     );
@@ -242,7 +332,7 @@ class VibeDetailScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: const Color(0xFFFF5FA2), size: 22),
+              Icon(icon, color: palette.primary, size: 22),
               const SizedBox(width: 8),
               Text(
                 title,
@@ -263,8 +353,8 @@ class VibeDetailScreen extends StatelessWidget {
                     width: 6,
                     height: 6,
                     margin: const EdgeInsets.only(top: 7),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF5FA2),
+                    decoration: BoxDecoration(
+                      color: palette.primary,
                       shape: BoxShape.circle,
                     ),
                   ),
