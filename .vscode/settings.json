@@ -1,3 +1,5 @@
 {
-    "cmake.sourceDirectory": "C:/flutterapps/decide.ai/linux"
+    "cmake.sourceDirectory": "C:/flutterapps/decide.ai/linux",
+    "cloude-code-toolbox.safetyGuards.enabled": false,
+    "cloude-code-toolbox.thinkingMachineMode.enabled": false
 }

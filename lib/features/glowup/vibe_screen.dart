@@ -1,19 +1,22 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'glow_models.dart';
 import '../../core/services/glow_profile_repository.dart';
+import 'aesthetic_art.dart';
+import 'glow_models.dart';
+import 'plan_provider.dart';
 
-class VibeScreen extends StatefulWidget {
+class VibeScreen extends ConsumerStatefulWidget {
   const VibeScreen({super.key});
 
   @override
-  State<VibeScreen> createState() => _VibeScreenState();
+  ConsumerState<VibeScreen> createState() => _VibeScreenState();
 }
 
-class _VibeScreenState extends State<VibeScreen> {
+class _VibeScreenState extends ConsumerState<VibeScreen> {
   Vibe? _selectedVibe;
   bool _loading = true;
 
@@ -64,15 +67,32 @@ class _VibeScreenState extends State<VibeScreen> {
     final updatedProfile = profile.copyWith(
       aesthetic: vibe.name,
       targetAesthetic: vibe.name,
-      currentLookSummary: profile.currentLookSummary,
+      currentLookSummary:
+          profile.currentLookSummary ?? 'Selected vibe: ${vibe.name}.',
       aestheticCombos: [vibe.name],
     );
 
     await GlowProfileRepository().save(updatedProfile);
+
+    final success = await ref
+        .read(planProvider.notifier)
+        .generatePlan(
+          profile: updatedProfile,
+          styleName: vibe.name,
+          styleId: vibe.name,
+          faceScanSummary: 'Selected aesthetic: ${vibe.name}.',
+        );
+
     if (!mounted) return;
     setState(() => _selectedVibe = vibe);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${vibe.name} is now your active aesthetic.')),
+      SnackBar(
+        content: Text(
+          success
+              ? 'Your ${vibe.name} plan is ready and saved.'
+              : '${vibe.name} is saved, but the plan could not be generated yet.',
+        ),
+      ),
     );
   }
 
@@ -136,6 +156,7 @@ class _VibeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final art = aestheticArtFor(vibe.name);
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(20),
@@ -150,21 +171,26 @@ class _VibeTile extends StatelessWidget {
               color: isSelected ? palette.primary : Colors.grey[200]!,
               width: isSelected ? 2 : 1,
             ),
+            gradient: LinearGradient(
+              colors: [art.palette.surface, Colors.white],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
           ),
           child: Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 58,
+                height: 58,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [palette.primary, palette.secondary],
+                    colors: [art.palette.primary, art.palette.secondary],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(vibe.icon, color: Colors.white, size: 26),
+                child: Icon(art.icon, color: Colors.white, size: 26),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -175,6 +201,14 @@ class _VibeTile extends StatelessWidget {
                       vibe.name,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      art.label,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: art.palette.accent,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -221,7 +255,10 @@ class VibeDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [palette.primary, palette.secondary],
+                colors: [
+                  aestheticArtFor(vibe.name).palette.primary,
+                  aestheticArtFor(vibe.name).palette.secondary,
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -230,7 +267,11 @@ class VibeDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(vibe.icon, color: Colors.white, size: 40),
+                Icon(
+                  aestheticArtFor(vibe.name).icon,
+                  color: Colors.white,
+                  size: 40,
+                ),
                 const SizedBox(height: 12),
                 Text(
                   vibe.name,
@@ -241,7 +282,7 @@ class VibeDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  vibe.description,
+                  aestheticArtFor(vibe.name).subtitle,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Colors.white.withValues(alpha: 0.95),
                     height: 1.5,
@@ -307,7 +348,7 @@ class VibeDetailScreen extends StatelessWidget {
                 if (context.mounted) Navigator.of(context).pop();
               },
               icon: const Icon(Icons.check_rounded),
-              label: const Text('Use this vibe'),
+              label: const Text('Use this plan'),
             ),
         ],
       ),

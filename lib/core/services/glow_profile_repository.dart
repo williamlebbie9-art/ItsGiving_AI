@@ -13,7 +13,12 @@ class GlowProfileRepository {
 
   Future<GlowUserProfile> load() async {
     final local = await _loadLocal();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    String? uid;
+    try {
+      uid = FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      uid = null;
+    }
     if (uid == null) return local;
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -35,13 +40,22 @@ class GlowProfileRepository {
 
   Future<void> save(GlowUserProfile profile) async {
     await _saveLocal(profile);
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    String? uid;
+    try {
+      uid = FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      uid = null;
+    }
     if (uid == null) return;
     try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'profile': profile.toJson(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set({
+            'profile': profile.toJson(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 8));
     } catch (_) {
       // Retain the local update and retry naturally on a future save/load.
     }
@@ -50,7 +64,12 @@ class GlowProfileRepository {
   Future<void> saveScanSummary(String summary) async {
     final profile = await _loadLocal();
     await save(profile.copyWith(currentLookSummary: summary));
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    String? uid;
+    try {
+      uid = FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      uid = null;
+    }
     if (uid == null) return;
     try {
       await FirebaseFirestore.instance
@@ -58,10 +77,7 @@ class GlowProfileRepository {
           .doc(uid)
           .collection('scans')
           .doc('latest')
-          .set({
-        'summary': summary,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+          .set({'summary': summary, 'createdAt': FieldValue.serverTimestamp()});
     } catch (_) {}
   }
 

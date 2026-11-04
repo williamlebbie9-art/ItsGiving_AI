@@ -65,14 +65,11 @@ class UserJourneyNotifier extends StateNotifier<UserJourneyState> {
     _initialized = true;
 
     try {
-      // 1. Restore or create a persistent anonymous Firebase identity.
+      // 1. Restore or create a persistent anonymous Firebase identity in the
+      // background; do not block the user on a slow or unavailable network.
       final auth = _ref.read(authServiceProvider);
-      try {
-        if (auth.currentUser == null) {
-          await auth.signInAnonymously();
-        }
-      } catch (e) {
-        debugPrint('[Journey] Anonymous auth restore failed: $e');
+      if (auth.currentUser == null) {
+        unawaited(_restoreAnonymousSession(auth));
       }
       final uid = auth.currentUser?.uid;
 
@@ -86,102 +83,109 @@ class UserJourneyNotifier extends StateNotifier<UserJourneyState> {
           prefs.getBool('glowup_intro_flow_completed') ?? false;
 
       if (uid != null) {
-        // Hydrate the canonical account profile before screens read the local
-        // offline cache, preserving aesthetic context across devices.
-        await GlowProfileRepository().load();
-        // Load usage for free-limit enforcement. This does NOT mark the
-        // full intro flow complete — the full flow also requires plan + paywall.
-        await _ref.read(usageProvider.notifier).load(uid);
+        unawaited(
+          Future.wait([
+            GlowProfileRepository()
+                .load()
+                .then((_) => null)
+                .catchError((_) => null),
+            _ref.read(usageProvider.notifier).load(uid).then((_) => null),
+            _ref.read(planProvider.notifier).loadPlan().then((_) => null),
+          ]).timeout(const Duration(seconds: 8)).catchError((_) => null),
+        );
 
         // Initialize notifications and schedule daily reminder if needed.
-        try {
-          await NotificationService.instance.init();
-          // Request permissions (iOS/macOS) when the app initializes.
-          unawaited(NotificationService.instance.requestPermissions());
+        unawaited(() async {
+          try {
+            await NotificationService.instance.init().timeout(
+              const Duration(seconds: 8),
+            );
+            // Request permissions (iOS/macOS) when the app initializes.
+            unawaited(NotificationService.instance.requestPermissions());
 
-          // Load the current plan and check streak to determine urgency.
-          await _ref.read(planProvider.notifier).loadPlan();
-          final prefs = await SharedPreferences.getInstance();
-          final notificationsEnabled =
-              prefs.getBool('glowup_notifications_enabled') ?? true;
-          final hour = prefs.getInt('glowup_notifications_hour') ?? 20;
-          final minute = prefs.getInt('glowup_notifications_minute') ?? 0;
+            final prefs = await SharedPreferences.getInstance();
+            final notificationsEnabled =
+                prefs.getBool('glowup_notifications_enabled') ?? true;
+            final hour = prefs.getInt('glowup_notifications_hour') ?? 20;
+            final minute = prefs.getInt('glowup_notifications_minute') ?? 0;
 
-          if (notificationsEnabled) {
-            final currentPlan = _ref.read(planProvider).plan;
-            if (currentPlan != null) {
-              final lastStreak = currentPlan.streak;
+            if (notificationsEnabled) {
+              final currentPlan = _ref.read(planProvider).plan;
+              if (currentPlan != null) {
+                final lastStreak = currentPlan.streak;
 
-              // If the user recently completed a day, check how long until the
-              // 24-hour streak window expires and notify if within the next 4h.
-              try {
-                final orderedDays = currentPlan.weeks
-                    .expand((w) => w.days)
-                    .toList();
-                DateTime? latestCompletion;
-                for (var d in orderedDays.reversed) {
-                  for (var t in d.tasks) {
-                    if (t.completedAt != null) {
-                      if (latestCompletion == null ||
-                          t.completedAt!.isAfter(latestCompletion)) {
-                        latestCompletion = t.completedAt!;
+                try {
+                  final orderedDays = currentPlan.weeks
+                      .expand((w) => w.days)
+                      .toList();
+                  DateTime? latestCompletion;
+                  for (var d in orderedDays.reversed) {
+                    for (var t in d.tasks) {
+                      if (t.completedAt != null) {
+                        if (latestCompletion == null ||
+                            t.completedAt!.isAfter(latestCompletion)) {
+                          latestCompletion = t.completedAt!;
+                        }
                       }
                     }
+                    if (latestCompletion != null) break;
                   }
-                  if (latestCompletion != null) break;
+
+                  if (latestCompletion != null) {
+                    final elapsed = DateTime.now().difference(latestCompletion);
+                    final remaining = const Duration(hours: 24) - elapsed;
+                    if (remaining > Duration.zero &&
+                        remaining <= const Duration(hours: 4)) {
+                      final hours = remaining.inHours;
+                      final minutes = remaining.inMinutes % 60;
+                      final pretty = hours > 0
+                          ? '$hours h $minutes m'
+                          : '$minutes m';
+                      await NotificationService.instance.showNotification(
+                        id: 3002,
+                        title: 'Streak at risk ✨',
+                        body:
+                            'Your streak may reset in $pretty — complete today\'s tasks!',
+                      );
+                    }
+                  }
+                } catch (e) {
+                  debugPrint(
+                    '[Notifications] streak urgency compute failed: $e',
+                  );
                 }
 
-                if (latestCompletion != null) {
-                  final elapsed = DateTime.now().difference(latestCompletion);
-                  final remaining = const Duration(hours: 24) - elapsed;
-                  if (remaining > Duration.zero &&
-                      remaining <= const Duration(hours: 4)) {
-                    final hours = remaining.inHours;
-                    final minutes = remaining.inMinutes % 60;
-                    final pretty = hours > 0
-                        ? '$hours h $minutes m'
-                        : '$minutes m';
-                    await NotificationService.instance.showNotification(
-                      id: 3002,
-                      title: 'Streak at risk ✨',
-                      body:
-                          'Your streak may reset in $pretty — complete today\'s tasks!',
-                    );
-                  }
-                }
-              } catch (e) {
-                debugPrint('[Notifications] streak urgency compute failed: $e');
+                final title = lastStreak <= 1
+                    ? 'Your streak is at risk ✨'
+                    : 'Keep your glow streak going';
+                final body = lastStreak <= 1
+                    ? 'Complete today\'s plan to keep your streak alive.'
+                    : 'You\'re on a $lastStreak-day streak — complete today\'s tasks!';
+
+                await NotificationService.instance.scheduleDailyReminder(
+                  id: 2001,
+                  title: title,
+                  body: body,
+                  hour: hour,
+                  minute: minute,
+                );
+              } else {
+                await NotificationService.instance.scheduleDailyReminder(
+                  id: 2001,
+                  title: 'Create your Glow-Up plan',
+                  body:
+                      'Finish onboarding to get your personalized 30-day plan.',
+                  hour: hour,
+                  minute: minute,
+                );
               }
-
-              final title = lastStreak <= 1
-                  ? 'Your streak is at risk ✨'
-                  : 'Keep your glow streak going';
-              final body = lastStreak <= 1
-                  ? 'Complete today\'s plan to keep your streak alive.'
-                  : 'You\'re on a $lastStreak-day streak — complete today\'s tasks!';
-
-              await NotificationService.instance.scheduleDailyReminder(
-                id: 2001,
-                title: title,
-                body: body,
-                hour: hour,
-                minute: minute,
-              );
             } else {
-              await NotificationService.instance.scheduleDailyReminder(
-                id: 2001,
-                title: 'Create your Glow-Up plan',
-                body: 'Finish onboarding to get your personalized 30-day plan.',
-                hour: hour,
-                minute: minute,
-              );
+              await NotificationService.instance.cancel(2001);
             }
-          } else {
-            await NotificationService.instance.cancel(2001);
+          } catch (e) {
+            debugPrint('[Notifications] Could not schedule reminders: $e');
           }
-        } catch (e) {
-          debugPrint('[Notifications] Could not schedule reminders: $e');
-        }
+        }());
         // 4. Restore subscription status (non-blocking).
         unawaited(_ref.read(subscriptionProvider.notifier).initialize(uid));
       }
@@ -194,6 +198,14 @@ class UserJourneyNotifier extends StateNotifier<UserJourneyState> {
     } catch (e) {
       debugPrint('[Journey] Could not load user state: $e');
       state = const UserJourneyState(isLoading: false);
+    }
+  }
+
+  Future<void> _restoreAnonymousSession(dynamic auth) async {
+    try {
+      await auth.signInAnonymously().timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('[Journey] Anonymous auth restore failed: $e');
     }
   }
 

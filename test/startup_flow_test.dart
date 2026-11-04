@@ -21,7 +21,35 @@ class TestUser implements User {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class SlowAuthService extends AuthService {
+  SlowAuthService() : super();
+
+  @override
+  Future<User> signInAnonymously() async {
+    await Future.delayed(const Duration(milliseconds: 1500));
+    return const TestUser();
+  }
+}
+
 void main() {
+  testWidgets('slow auth startup does not block onboarding', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authServiceProvider.overrideWithValue(SlowAuthService())],
+        child: const GivingAiApp(),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('What is your main glow-up goal?'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 1600));
+  });
+
   testWidgets('new user sees onboarding then intro face scan', (tester) async {
     SharedPreferences.setMockInitialValues({});
 

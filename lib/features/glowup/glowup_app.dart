@@ -90,9 +90,9 @@ class _GlowUpShellState extends ConsumerState<GlowUpShell> {
                   label: 'Coach',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.favorite_border_rounded),
-                  selectedIcon: Icon(Icons.favorite_rounded),
-                  label: 'Inspo',
+                  icon: Icon(Icons.checkroom_rounded),
+                  selectedIcon: Icon(Icons.checkroom_rounded),
+                  label: 'Wardrobe',
                 ),
               ],
             ),

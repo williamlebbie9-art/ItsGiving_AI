@@ -165,7 +165,13 @@ class _EnhancedOnboardingScreenState
       skinType: joined('glowup_skin_type'),
       lifestyle: joined('glowup_lifestyle'),
     );
-    await GlowProfileRepository().save(profile);
+    try {
+      await GlowProfileRepository()
+          .save(profile)
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Keep onboarding moving even when Firestore is slow or unavailable.
+    }
 
     // Auto sign-in anonymously so the user can continue as a guest.
     // No login screen is shown — the anonymous UID becomes the single
@@ -177,7 +183,10 @@ class _EnhancedOnboardingScreenState
           .timeout(const Duration(seconds: 8));
       // Persist the onboarding profile under the anonymous UID so it can be
       // restored after an app restart.
-      await _saveProfileToFirestore(user.uid, profile);
+      await _saveProfileToFirestore(
+        user.uid,
+        profile,
+      ).timeout(const Duration(seconds: 8));
     } catch (e) {
       // Even if anonymous sign-in fails (e.g. Firebase not configured in
       // tests), the user can still continue with a local-only session.
@@ -199,11 +208,20 @@ class _EnhancedOnboardingScreenState
 
     // Save a minimal profile so the app has something to work with.
     final profile = const GlowUserProfile();
-    await GlowProfileRepository().save(profile);
-
-    // Try anonymous sign-in (non-blocking — never block skip).
     try {
-      await ref.read(authServiceProvider).signInAnonymously();
+      await GlowProfileRepository()
+          .save(profile)
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Local-only fallback keeps onboarding moving even when Firebase is slow.
+    }
+
+    // Try anonymous sign-in, but never block the user on a slow network.
+    try {
+      await ref
+          .read(authServiceProvider)
+          .signInAnonymously()
+          .timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint('[Onboarding] Anonymous sign-in failed on skip: $e');
     }

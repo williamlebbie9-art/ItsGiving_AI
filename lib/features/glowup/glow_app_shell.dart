@@ -7,13 +7,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/providers/app_providers.dart';
 import 'ai_coach_screen.dart';
+import 'ai_companion.dart';
 import 'ai_face_scan_screen.dart';
 import 'auth_screen.dart';
 import 'feature_cards_screen.dart';
 import 'glow_models.dart';
 import 'glow_up_plan_screen.dart';
-import 'inspiration_screen.dart';
 import 'image_generation_screen.dart';
+import 'wardrobe_ai_screen.dart';
 import 'paywall_screen.dart';
 import 'plan_models.dart';
 import 'plan_provider.dart';
@@ -30,6 +31,31 @@ class GlowAppShell extends StatefulWidget {
 
 class _GlowAppShellState extends State<GlowAppShell> {
   int _index = 0;
+  CompanionProgressState _companionState = CompanionProgressState.empty();
+  final _progressionService = CompanionProgressionService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCompanionProgress();
+  }
+
+  Future<void> _loadCompanionProgress() async {
+    final state = await _progressionService.load();
+    if (mounted) {
+      setState(() => _companionState = state);
+    }
+  }
+
+  Future<void> _awardCompanionXp() async {
+    final next = await _progressionService.awardXp(
+      'app_companion_tap_${DateTime.now().millisecondsSinceEpoch}',
+      15,
+    );
+    if (mounted) {
+      setState(() => _companionState = next);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,11 +65,28 @@ class _GlowAppShellState extends State<GlowAppShell> {
       const GlowUpPlanScreen(),
       const ProgressTrackingScreen(),
       const AiCoachScreen(),
-      const InspirationGalleryScreen(),
+      const WardrobeAiScreen(),
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: pages),
+      body: Stack(
+        children: [
+          IndexedStack(index: _index, children: pages),
+          if (_index == 0 || _index == 2 || _index == 3 || _index == 4)
+            ItGivingCompanion(
+              progress: _companionState,
+              onTaskComplete: _awardCompanionXp,
+              onAccessoryChanged: (accessory) async {
+                final next = await _progressionService.setSelectedAccessory(
+                  accessory,
+                );
+                if (mounted) {
+                  setState(() => _companionState = next);
+                }
+              },
+            ),
+        ],
+      ),
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
         decoration: BoxDecoration(
@@ -91,9 +134,9 @@ class _GlowAppShellState extends State<GlowAppShell> {
                 label: 'Coach',
               ),
               NavigationDestination(
-                icon: Icon(Icons.favorite_border_rounded),
-                selectedIcon: Icon(Icons.favorite_rounded),
-                label: 'Inspo',
+                icon: Icon(Icons.checkroom_rounded),
+                selectedIcon: Icon(Icons.checkroom_rounded),
+                label: 'Wardrobe',
               ),
             ],
           ),

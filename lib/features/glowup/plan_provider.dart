@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'ai_companion.dart';
 import 'glow_models.dart';
 import 'plan_models.dart';
 import 'plan_service.dart';
@@ -120,6 +121,7 @@ class PlanNotifier extends StateNotifier<PlanState> {
         await _ref.read(usageProvider.notifier).load(uid);
       }
       state = state.copyWith(plan: plan, isGenerating: false);
+      await CompanionProgressionService().awardPlanGenerated();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -157,6 +159,7 @@ class PlanNotifier extends StateNotifier<PlanState> {
       // If the user's streak just dropped to zero, send an immediate alert.
       if (previousStreak > 0 && updated.streak == 0) {
         try {
+          await CompanionProgressionService().applyStreakLoss();
           await NotificationService.instance.showNotification(
             id: 3001,
             title: 'Streak at risk',

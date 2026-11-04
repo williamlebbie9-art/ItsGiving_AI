@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/models/decision_models.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/services/decision_engine.dart';
+import 'ai_companion.dart';
 import 'glow_models.dart';
 import 'paywall_screen.dart';
 import 'plan_provider.dart';
@@ -197,6 +198,9 @@ class _AiCoachScreenState extends ConsumerState<AiCoachScreen> {
           ? result.reasoning
           : 'Here\'s what I\'d suggest: ${result.bestChoice}. '
                 '${result.pros.join(' ')}';
+      await CompanionProgressionService().awardCoachInsight();
+
+      if (!mounted) return;
       setState(() {
         _messages.add(CoachMessage(text: reply, isUser: false));
         _isTyping = false;
