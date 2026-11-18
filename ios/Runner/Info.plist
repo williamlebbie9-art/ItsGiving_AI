@@ -35,6 +35,10 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow camera access so you can take outfit and progress photos for wardrobe and glow-up AI analysis.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Allow photo access so you can choose outfit and progress photos from your library for wardrobe and glow-up AI analysis.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

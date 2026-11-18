@@ -93,6 +93,42 @@ class AiClient {
     return Map<String, dynamic>.from(plan);
   }
 
+  /// Sends one outfit image to the dedicated wardrobe-analysis contract.
+  Future<Map<String, dynamic>> generateWardrobeReport({
+    required String prompt,
+    required String imagePath,
+  }) async {
+    final images = await _buildImagePayloads(imagePaths: [imagePath]);
+    if (images.length != 1) {
+      throw const FormatException('Could not read the outfit image.');
+    }
+    final idToken = await _getIdToken();
+    final response = await http
+        .post(
+          Uri.parse(_decisionFunctionUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            if (idToken != null) 'Authorization': 'Bearer $idToken',
+          },
+          body: jsonEncode({
+            'category': 'fashion',
+            'prompt': prompt,
+            'images': images,
+            'operation': 'wardrobeScan',
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode > 299) {
+      throw Exception('Wardrobe analysis failed: ${response.statusCode}');
+    }
+    final payload = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final report = payload['report'];
+    if (report is! Map) {
+      throw const FormatException('Wardrobe response is missing its report.');
+    }
+    return Map<String, dynamic>.from(report);
+  }
+
   Future<DecisionResult> _callFirebaseFunction({
     required DecisionCategory category,
     required String prompt,

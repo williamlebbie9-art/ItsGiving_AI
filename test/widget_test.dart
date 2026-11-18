@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -345,5 +346,15 @@ void main() {
     );
 
     expect(plan.hasMeaningfulDayVariation, isFalse);
+  });
+
+  test('iOS app declares camera and photo library permission descriptions', () {
+    final plistFile = File('ios/Runner/Info.plist');
+    expect(plistFile.existsSync(), isTrue,
+        reason: 'Expected the iOS Info.plist to exist.');
+
+    final contents = plistFile.readAsStringSync();
+    expect(contents, contains('NSCameraUsageDescription'));
+    expect(contents, contains('NSPhotoLibraryUsageDescription'));
   });
 }

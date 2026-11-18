@@ -2,12 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/decision_models.dart';
-import '../../core/services/decision_engine.dart';
+import '../../core/services/ai_client.dart';
 import '../../core/services/glow_profile_repository.dart';
 import 'ai_coach_screen.dart';
 import 'ai_companion.dart';
@@ -45,6 +46,33 @@ class WardrobeReport {
   final List<String> stylingAlternatives;
   final List<String> occasionSuggestions;
   final DateTime createdAt;
+
+  factory WardrobeReport.fromJson(Map<String, dynamic> json) {
+    if (!validateWardrobeReport(json)) {
+      throw const FormatException('The wardrobe report was incomplete.');
+    }
+    List<String> strings(String key) => (json[key] as List)
+        .map((value) => value.toString())
+        .where((value) => value.trim().isNotEmpty)
+        .toList();
+    return WardrobeReport(
+      aestheticMatchScore:
+          (json['aestheticMatchScore'] as num).round().clamp(0, 100).toInt(),
+      fashionabilityScore:
+          (json['fashionabilityScore'] as num).round().clamp(0, 100).toInt(),
+      verdict: json['overallVerdict'].toString(),
+      whatGetsRight: json['whatGetsRight'].toString(),
+      whatCouldImprove: json['whatCouldImprove'].toString(),
+      colourCoordination: json['colourCoordination'].toString(),
+      silhouetteAndProportions: json['silhouetteAndProportions'].toString(),
+      layeringAndAccessories: json['layeringAndAccessories'].toString(),
+      aestheticAlignment: json['aestheticAlignment'].toString(),
+      improvementSuggestions: strings('improvementSuggestions'),
+      stylingAlternatives: strings('stylingAlternatives'),
+      occasionSuggestions: strings('occasionSuggestions'),
+      createdAt: DateTime.now(),
+    );
+  }
 
   static WardrobeReport fromDecision(
     DecisionResult result, {
@@ -304,9 +332,34 @@ class _WardrobeAiScreenState extends ConsumerState<WardrobeAiScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final file = await _picker.pickImage(source: source, imageQuality: 85);
-    if (file == null) return;
-    setState(() => _imageFile = file);
+    try {
+      final file = await _picker.pickImage(
+        source: source,
+        imageQuality: 70,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      if (file == null) return;
+      if (!mounted) return;
+      setState(() => _imageFile = file);
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+      final message = switch (error.code) {
+        'camera_access_denied' || 'photo_access_denied' =>
+          'Camera access is off. Please enable it in Settings > Privacy & Security.',
+        _ => 'Your camera or photo library could not be opened right now.',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Something went wrong while opening your camera.'),
+        ),
+      );
+    }
   }
 
   Future<void> _analyzeOutfit() async {
@@ -335,19 +388,11 @@ class _WardrobeAiScreenState extends ConsumerState<WardrobeAiScreen> {
           'If the image is too unclear to judge properly, say so clearly instead of pretending certainty. '
           'Provide a short verdict, what is working, what could improve, color coordination, silhouette, layering, aesthetic alignment, 3 practical improvement suggestions, 3 styling alternatives using items the user likely already has, and 3 occasion suggestions.';
 
-      final result = await DecisionEngine().decide(
-        DecisionRequest(
-          query: prompt,
-          manualCategory: DecisionCategory.fashion,
-          operation: 'coachInsight',
-        ),
+      final rawReport = await const AiClient().generateWardrobeReport(
+        prompt: prompt,
+        imagePath: _imageFile!.path,
       );
-
-      final report = WardrobeReport.fromDecision(
-        result,
-        aesthetic: aesthetic,
-        occasion: _selectedOccasion,
-      );
+      final report = WardrobeReport.fromJson(rawReport);
 
       final prefs = await SharedPreferences.getInstance();
       final history = prefs.getStringList('wardrobe_ai_history') ?? const [];
@@ -357,21 +402,11 @@ class _WardrobeAiScreenState extends ConsumerState<WardrobeAiScreen> {
       if (!mounted) return;
       setState(() => _report = report);
     } catch (_) {
-      final fallback = WardrobeReport.fallback(
-        aesthetic: _savedAesthetic ?? 'Clean Girl',
-        occasion: _selectedOccasion,
-      );
-      final prefs = await SharedPreferences.getInstance();
-      final history = prefs.getStringList('wardrobe_ai_history') ?? const [];
-      final next = [...history, jsonEncode(fallback.toJson())];
-      await prefs.setStringList('wardrobe_ai_history', next.take(20).toList());
-
       if (!mounted) return;
-      setState(() => _report = fallback);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'AI review timed out, so a helpful fallback report was prepared.',
+            'We could not analyze this outfit. Check your connection and try again.',
           ),
         ),
       );

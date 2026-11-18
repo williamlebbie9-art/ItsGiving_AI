@@ -62,5 +62,19 @@ void main() {
         expect(sad.selectedAccessory, 'soft glam accessory');
       },
     );
+
+    test('supports vibe-based accessory wardrobes for style families', () {
+      final softGirlStyles = companionAccessories
+          .where((item) => item.vibe == 'soft girl')
+          .toList();
+      final oldMoneyStyles = companionAccessories
+          .where((item) => item.vibe == 'old money')
+          .toList();
+
+      expect(softGirlStyles, isNotEmpty);
+      expect(oldMoneyStyles, isNotEmpty);
+      expect(softGirlStyles.every((item) => item.requiresLevel >= 1), isTrue);
+      expect(oldMoneyStyles.every((item) => item.requiresLevel >= 1), isTrue);
+    });
   });
 }

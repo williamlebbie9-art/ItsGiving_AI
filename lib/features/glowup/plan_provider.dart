@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/app_providers.dart';
-import '../../core/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'ai_companion.dart';
 import 'glow_models.dart';
@@ -141,7 +140,16 @@ class PlanNotifier extends StateNotifier<PlanState> {
     final plan = state.plan;
     if (plan == null) return;
 
-    final previousStreak = plan.streak;
+    var completedTaskId = '';
+    for (final week in plan.weeks) {
+      if (week.weekNumber != weekNumber) continue;
+      for (final day in week.days) {
+        if (day.dayNumber != dayNumber) continue;
+        for (final task in day.tasks) {
+          if (task.id == taskId && !task.isCompleted) completedTaskId = taskId;
+        }
+      }
+    }
 
     try {
       final updated = await _service.toggleTask(
@@ -156,17 +164,11 @@ class PlanNotifier extends StateNotifier<PlanState> {
         await prefs.setInt('glowup_last_known_streak', updated.streak);
       } catch (_) {}
 
-      // If the user's streak just dropped to zero, send an immediate alert.
-      if (previousStreak > 0 && updated.streak == 0) {
-        try {
-          await CompanionProgressionService().applyStreakLoss();
-          await NotificationService.instance.showNotification(
-            id: 3001,
-            title: 'Streak at risk',
-            body:
-                'You missed a day and your streak was reset. Open the app to continue your journey.',
-          );
-        } catch (_) {}
+      if (completedTaskId.isNotEmpty) {
+        await CompanionProgressionService().awardXp(
+          'task_${plan.planId}_$completedTaskId',
+          10,
+        );
       }
       state = state.copyWith(plan: updated);
     } catch (_) {
@@ -191,6 +193,7 @@ class PlanNotifier extends StateNotifier<PlanState> {
         notes: notes,
       );
       state = state.copyWith(plan: updated);
+      await CompanionProgressionService().applyWeeklyCheckIn(rating);
     } catch (_) {}
   }
 

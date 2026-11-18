@@ -15,6 +15,7 @@ const FREE_LIMITS = {
   faceScan: 1,
   coachInsight: 3,
   plan: 1,
+  wardrobeScan: 1,
   glowUpImage: 1,
 };
 const ALLOWED_OPERATIONS = new Set(Object.keys(FREE_LIMITS));
@@ -329,6 +330,14 @@ exports.generateDecision = onRequest(
           : await callGeminiPlan(prompt);
         await incrementUsage(uid, "planCount");
         res.status(200).json({ plan });
+        return;
+      }
+      if (op === "wardrobeScan") {
+        const report = provider === "openai"
+          ? await callOpenAiWardrobe(prompt, images)
+          : await callGeminiWardrobe(prompt, images);
+        await incrementUsage(uid, "wardrobeScanCount");
+        res.status(200).json({ report });
         return;
       }
 
@@ -674,6 +683,32 @@ async function callOpenAiPlan(prompt) {
   return JSON.parse(data?.choices?.[0]?.message?.content ?? "{}");
 }
 
+const WARDROBE_SYSTEM_PROMPT = `You are a supportive fashion editor assessing one complete outfit photo.
+Return only JSON with exactly: aestheticMatchScore (integer 0-100), fashionabilityScore (integer 0-100), overallVerdict, whatGetsRight, whatCouldImprove, colourCoordination, silhouetteAndProportions, layeringAndAccessories, aestheticAlignment, improvementSuggestions (3 strings), stylingAlternatives (3 strings), occasionSuggestions (3 strings).
+Only score what is visible. If the outfit, full body, or image is unclear, or if multiple people are visible, say so in whatCouldImprove and use cautious scores. Do not identify people, infer sensitive traits, or shame appearance.`;
+
+async function callOpenAiWardrobe(prompt, images) {
+  const apiKey = openAiApiKey.value() || process.env.OPENAI_API_KEY || "";
+  if (!apiKey) throw new Error("OPENAI_API_KEY is missing.");
+  const content = [{ type: "text", text: prompt }, ...images.map((image) => ({
+    type: "image_url",
+    image_url: { url: `data:${image.mimeType};base64,${image.data}` },
+  }))];
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [{ role: "system", content: WARDROBE_SYSTEM_PROMPT }, { role: "user", content }],
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+    }),
+  });
+  if (!response.ok) throw new Error(`OpenAI wardrobe request failed: ${response.status}`);
+  const data = await response.json();
+  return JSON.parse(data?.choices?.[0]?.message?.content ?? "{}");
+}
+
 async function callGeminiPlan(prompt) {
   const apiKey = process.env.GEMINI_API_KEY || "";
   if (!apiKey) throw new Error("GEMINI_API_KEY is missing.");
@@ -691,6 +726,23 @@ async function callGeminiPlan(prompt) {
     },
   );
   if (!response.ok) throw new Error(`Gemini plan request failed: ${response.status}`);
+  const data = await response.json();
+  return JSON.parse(stripJsonFence(data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}"));
+}
+
+async function callGeminiWardrobe(prompt, images) {
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) throw new Error("GEMINI_API_KEY is missing.");
+  const model = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      generationConfig: { temperature: 0.3, responseMimeType: "application/json" },
+      systemInstruction: { parts: [{ text: WARDROBE_SYSTEM_PROMPT }] },
+      contents: [{ role: "user", parts: [{ text: prompt }, ...images.map((image) => ({ inline_data: { mime_type: image.mimeType, data: image.data } }))] }],
+    }) },
+  );
+  if (!response.ok) throw new Error(`Gemini wardrobe request failed: ${response.status}`);
   const data = await response.json();
   return JSON.parse(stripJsonFence(data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}"));
 }

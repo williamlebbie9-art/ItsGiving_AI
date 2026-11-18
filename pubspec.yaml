@@ -96,6 +96,8 @@ flutter_launcher_icons:
     image_path: assets/branding/app_icon.png
 
 flutter:
+  assets:
+    - assets/images/its_giving_avatar.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

@@ -31,6 +31,7 @@ class GlowAppShell extends StatefulWidget {
 
 class _GlowAppShellState extends State<GlowAppShell> {
   int _index = 0;
+  bool _companionVisible = true;
   CompanionProgressState _companionState = CompanionProgressState.empty();
   final _progressionService = CompanionProgressionService();
 
@@ -38,6 +39,13 @@ class _GlowAppShellState extends State<GlowAppShell> {
   void initState() {
     super.initState();
     _loadCompanionProgress();
+    CompanionProgressionService.changes.addListener(_loadCompanionProgress);
+  }
+
+  @override
+  void dispose() {
+    CompanionProgressionService.changes.removeListener(_loadCompanionProgress);
+    super.dispose();
   }
 
   Future<void> _loadCompanionProgress() async {
@@ -72,7 +80,8 @@ class _GlowAppShellState extends State<GlowAppShell> {
       body: Stack(
         children: [
           IndexedStack(index: _index, children: pages),
-          if (_index == 0 || _index == 2 || _index == 3 || _index == 4)
+          if (_companionVisible &&
+              (_index == 0 || _index == 2 || _index == 3 || _index == 4))
             ItGivingCompanion(
               progress: _companionState,
               onTaskComplete: _awardCompanionXp,
@@ -84,6 +93,7 @@ class _GlowAppShellState extends State<GlowAppShell> {
                   setState(() => _companionState = next);
                 }
               },
+              onDismiss: () => setState(() => _companionVisible = false),
             ),
         ],
       ),
